@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs a Refresh check every day at noon. The script exits immediately unless
+  today is a Payday: launchd cannot express "every second Friday", so the
+  cadence lives in budgetbetter/schedule.py instead. See ADR-0007.
+
+  Install:
+    sed "s|__PROJECT_DIR__|$PWD|g" scripts/com.budgetbetter.autosync.plist \
+      > ~/Library/LaunchAgents/com.budgetbetter.autosync.plist
+    launchctl load ~/Library/LaunchAgents/com.budgetbetter.autosync.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.budgetbetter.autosync</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PROJECT_DIR__/.venv/bin/python</string>
+        <string>-m</string>
+        <string>budgetbetter.autosync</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__PROJECT_DIR__</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>12</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- launchd runs a missed StartCalendarInterval on wake by itself. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>__PROJECT_DIR__/autosync.log</string>
+    <key>StandardErrorPath</key>
+    <string>__PROJECT_DIR__/autosync.log</string>
+</dict>
+</plist>

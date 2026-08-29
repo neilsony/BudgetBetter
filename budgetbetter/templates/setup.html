@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Set up BudgetBetter{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head"><h2>Finish setting up</h2></div>
+  <div style="padding: 20px;">
+    <p>These settings are still missing from your <code>.env</code>:</p>
+    <ul>
+      {% for name in missing %}<li><code>{{ name }}</code></li>{% endfor %}
+    </ul>
+    <ol style="line-height:1.9">
+      <li>Copy the example file: <code>cp .env.example .env</code></li>
+      <li>Put your Client ID and Sandbox secret from
+        <a href="https://dashboard.plaid.com/developers/keys" target="_blank" rel="noopener">the Plaid dashboard</a>
+        into <code>PLAID_CLIENT_ID</code> and <code>PLAID_SECRET</code>.</li>
+      <li>Generate an encryption key and paste it into <code>APP_ENCRYPTION_KEY</code>:
+        <pre><code>python -m budgetbetter.crypto keygen</code></pre></li>
+      <li>Restart the server and reload this page.</li>
+    </ol>
+    <p style="color:var(--muted);font-size:13px">
+      <code>.env</code> is gitignored. Your Plaid access token is encrypted with this key before
+      it is written to the database (ADR-0005).
+    </p>
+  </div>
+</div>
+{% endblock %}

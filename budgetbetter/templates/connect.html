@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Connect a bank · BudgetBetter{% endblock %}
+{% block head %}<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>{% endblock %}
+{% block headerextra %}
+  {% if items %}<a class="btn" href="/">Dashboard</a>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head"><h2>Connect your bank</h2></div>
+  <div style="padding: 28px 20px 32px; text-align:center;">
+    <p style="max-width:46ch;margin:0 auto 22px;color:var(--muted)">
+      {% if is_sandbox %}
+        You are in <strong>Sandbox</strong>, so pick any test bank and sign in with
+        <code>user_good</code> / <code>pass_good</code>.
+      {% else %}
+        Sign in to Royal Bank of Canada. Your credentials go straight to Plaid — this app
+        never sees them.
+      {% endif %}
+    </p>
+    <button id="link" class="btn-primary" style="padding:11px 22px;font-size:15px">
+      Connect with Plaid
+    </button>
+    <p id="status" style="margin-top:18px;color:var(--muted);font-size:14px"></p>
+  </div>
+</div>
+
+{% if items %}
+<div class="card">
+  <div class="card-head"><h2>Connected</h2></div>
+  <div style="padding: 8px 20px 16px">
+    {% for item in items %}
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <strong>{{ item["institution_name"] or "Bank" }}</strong>
+        <span style="color:var(--muted);font-size:13px">
+          — linked {{ item["created_at"][:10] }}
+        </span>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<script>
+const status = document.getElementById('status');
+
+document.getElementById('link').addEventListener('click', async () => {
+  status.textContent = 'Opening Plaid…';
+  let res, data;
+  try {
+    res = await fetch('/api/link-token', { method: 'POST' });
+    data = await res.json();
+  } catch (e) {
+    status.textContent = 'Could not reach the server: ' + e.message;
+    return;
+  }
+  if (!res.ok || !data.link_token) {
+    status.textContent = 'Plaid rejected the request: ' + (data.error || 'unknown error');
+    return;
+  }
+
+  Plaid.create({
+    token: data.link_token,
+    onSuccess: async (publicToken) => {
+      status.textContent = 'Saving your connection…';
+      const body = new FormData();
+      body.append('public_token', publicToken);
+      const saved = await fetch('/api/exchange', { method: 'POST', body });
+      if (saved.ok) {
+        status.textContent = 'Connected. Taking you to the dashboard…';
+        window.location = '/';
+      } else {
+        status.textContent = 'Could not save the connection.';
+      }
+    },
+    onExit: (err) => {
+      status.textContent = err ? ('Link closed: ' + (err.display_message || err.error_message)) : '';
+    },
+  }).open();
+});
+</script>
+{% endblock %}
