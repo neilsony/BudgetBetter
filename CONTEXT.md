@@ -11,7 +11,7 @@ The bank itself, as Plaid identifies it (e.g. Royal Bank of Canada).
 _Avoid_: bank, provider
 
 **Item**:
-One authenticated login at one Institution. Owns the credentials used to fetch data and may hold many Accounts.
+One authenticated login at one Institution. Owns the credentials used to fetch data and may hold many Accounts. Linked either for **budgeting** (spending) or for **investing** (holdings), never both.
 _Avoid_: connection, login, link
 
 **Account**:
@@ -47,6 +47,24 @@ _Avoid_: manual category, correction
 **Internal Transfer**:
 Money moving between two of the owner's own Accounts, including a credit card payment. Not spending, and excluded from spending totals.
 _Avoid_: payment, transfer (unqualified)
+
+### Investing
+
+**Security**:
+An instrument that can be held — a stock, an ETF, a mutual fund, cash.
+_Avoid_: asset, instrument, stock (unqualified)
+
+**Holding**:
+How much of one Security an Account holds right now. A snapshot of the present, never a history.
+_Avoid_: position, lot
+
+**Cost basis**:
+What the owner paid for a Holding. Often not reported by Canadian brokerages, in which case gain is unknown rather than zero.
+_Avoid_: book value, purchase price
+
+**Trade**:
+One buy, sell, dividend, fee, or transfer on an investing Account.
+_Avoid_: investment transaction, order, activity
 
 ### Cadence
 

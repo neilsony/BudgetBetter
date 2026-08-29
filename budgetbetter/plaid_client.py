@@ -6,6 +6,9 @@ country code, and Canadian institutions do not use OAuth, so no redirect URI
 has to be registered. See ADR-0002.
 """
 
+import datetime as dt
+
+import certifi
 import plaid
 from plaid.api import plaid_api
 from plaid.model.country_code import CountryCode
@@ -17,10 +20,17 @@ from plaid.model.transactions_sync_request import TransactionsSyncRequest
 from plaid.model.transactions_sync_request_options import TransactionsSyncRequestOptions
 
 from budgetbetter.config import INITIAL_BACKFILL_DAYS, Settings
+from budgetbetter.investments import HoldingsSnapshot, InvestmentTransactionPage
 from budgetbetter.sync import SyncPage
 
 # RBC is Canadian; without CA it will not appear in Link.
 COUNTRY_CODES = ["CA", "US"]
+
+# Which Plaid product each kind of Item is linked for. See ADR-0008.
+PRODUCTS_FOR_KIND = {
+    "budgeting": ["transactions"],
+    "investing": ["investments"],
+}
 
 
 def build_client(settings: Settings) -> plaid_api.PlaidApi:
@@ -29,13 +39,22 @@ def build_client(settings: Settings) -> plaid_api.PlaidApi:
         host=host,
         api_key={"clientId": settings.plaid_client_id, "secret": settings.plaid_secret},
     )
+    # plaid-python defaults ca_certs to None, which makes urllib3 fall back to the
+    # system cert store. On a python.org macOS build that store is empty unless
+    # "Install Certificates.command" was run, so point it at certifi explicitly.
+    configuration.ssl_ca_cert = certifi.where()
     return plaid_api.PlaidApi(plaid.ApiClient(configuration))
 
 
-def create_link_token(client: plaid_api.PlaidApi, *, user_id: str = "budgetbetter-owner") -> str:
+def create_link_token(
+    client: plaid_api.PlaidApi,
+    *,
+    kind: str = "budgeting",
+    user_id: str = "budgetbetter-owner",
+) -> str:
     request = LinkTokenCreateRequest(
         client_name="BudgetBetter",
-        products=[Products("transactions")],
+        products=[Products(name) for name in PRODUCTS_FOR_KIND.get(kind, ["transactions"])],
         country_codes=[CountryCode(code) for code in COUNTRY_CODES],
         language="en",
         user=LinkTokenCreateRequestUser(client_user_id=user_id),
@@ -105,3 +124,66 @@ def make_page_fetcher(client: plaid_api.PlaidApi, access_token: str):
         )
 
     return fetch_page
+
+
+# --- Investments -----------------------------------------------------------
+
+
+def make_holdings_fetcher(client: plaid_api.PlaidApi, access_token: str):
+    """A `fetch_holdings() -> HoldingsSnapshot` closure. See ADR-0008."""
+    from plaid.model.investments_holdings_get_request import InvestmentsHoldingsGetRequest
+
+    def fetch_holdings() -> HoldingsSnapshot:
+        response = client.investments_holdings_get(
+            InvestmentsHoldingsGetRequest(access_token=access_token)
+        ).to_dict()
+        return HoldingsSnapshot(
+            accounts=response.get("accounts", []),
+            securities=response.get("securities", []),
+            holdings=response.get("holdings", []),
+        )
+
+    return fetch_holdings
+
+
+def make_investment_transactions_fetcher(
+    client: plaid_api.PlaidApi,
+    access_token: str,
+    *,
+    start: dt.date | None = None,
+    end: dt.date | None = None,
+    page_size: int = 500,
+):
+    """A `fetch(offset) -> InvestmentTransactionPage` closure.
+
+    This endpoint is offset-paginated over a date range rather than
+    cursor-based, so we ask for the same backfill window as spending.
+    """
+    from plaid.model.investments_transactions_get_request import (
+        InvestmentsTransactionsGetRequest,
+    )
+    from plaid.model.investments_transactions_get_request_options import (
+        InvestmentsTransactionsGetRequestOptions,
+    )
+
+    end = end or dt.date.today()
+    start = start or (end - dt.timedelta(days=INITIAL_BACKFILL_DAYS))
+
+    def fetch(offset: int) -> InvestmentTransactionPage:
+        response = client.investments_transactions_get(
+            InvestmentsTransactionsGetRequest(
+                access_token=access_token,
+                start_date=start,
+                end_date=end,
+                options=InvestmentsTransactionsGetRequestOptions(
+                    count=page_size, offset=offset
+                ),
+            )
+        ).to_dict()
+        return InvestmentTransactionPage(
+            securities=response.get("securities", []),
+            transactions=response.get("investment_transactions", []),
+            total=int(response.get("total_investment_transactions") or 0),
+        )
+
+    return fetch

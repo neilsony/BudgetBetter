@@ -37,6 +37,43 @@
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
+
+  /* Sidebar shell */
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 224px; flex: 0 0 224px; padding: 24px 14px;
+    border-right: 1px solid var(--border); background: var(--surface);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .sidebar .brand { padding: 0 10px 22px; }
+  .navlink {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 9px; text-decoration: none;
+    color: var(--muted); font-weight: 550; font-size: 14px;
+  }
+  .navlink:hover { background: var(--surface-2); color: var(--text); }
+  .navlink.on { background: var(--accent-soft); color: var(--accent); }
+  .navlink .ico { width: 18px; text-align: center; font-size: 15px; }
+  .navlink .dot {
+    margin-left: auto; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted); opacity: .45;
+  }
+  .sidebar .foot { margin-top: auto; padding: 0 12px; }
+  .nav-group {
+    padding: 16px 12px 6px; font-size: 11px; font-weight: 650;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  }
+  .main { flex: 1; min-width: 0; }
+  @media (max-width: 820px) {
+    .shell { flex-direction: column; }
+    .sidebar {
+      width: auto; flex: none; flex-direction: row; align-items: center;
+      overflow-x: auto; padding: 12px; gap: 8px;
+      border-right: 0; border-bottom: 1px solid var(--border);
+    }
+    .sidebar .brand { padding: 0 8px 0 4px; }
+    .nav-group, .sidebar .foot { display: none; }
+  }
   body {
     margin: 0;
     background: var(--bg);
@@ -107,14 +144,37 @@
 {% block head %}{% endblock %}
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
+<div class="shell">
+  <nav class="sidebar">
     <div class="brand">Budget<span>Better</span></div>
-    {% if is_sandbox is defined and is_sandbox %}<span class="pill">Sandbox</span>{% endif %}
-    <div class="spacer"></div>
-    {% block headerextra %}{% endblock %}
-  </header>
-  {% block content %}{% endblock %}
+
+    <div class="nav-group">Accounts</div>
+    <a class="navlink {{ 'on' if active_tab == 'budgeting' }}" href="/">
+      <span class="ico">◧</span> Budgeting
+      {% if has_budgeting is defined and not has_budgeting %}<span class="dot"></span>{% endif %}
+    </a>
+    <a class="navlink {{ 'on' if active_tab == 'investing' }}" href="/investments">
+      <span class="ico">◈</span> Investments
+      {% if has_investing is defined and not has_investing %}<span class="dot"></span>{% endif %}
+    </a>
+
+    <div class="foot">
+      {% if is_sandbox is defined and is_sandbox %}<span class="pill">Sandbox</span>{% endif %}
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="wrap">
+      <header class="top">
+        <h1 style="margin:0;font-size:19px;font-weight:650;letter-spacing:-.02em">
+          {% block pagetitle %}{% endblock %}
+        </h1>
+        <div class="spacer"></div>
+        {% block headerextra %}{% endblock %}
+      </header>
+      {% block content %}{% endblock %}
+    </div>
+  </div>
 </div>
 </body>
 </html>

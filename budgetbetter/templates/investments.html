@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}Investments · BudgetBetter{% endblock %}
+{% block pagetitle %}Investments{% endblock %}
+
+{% block head %}
+<style>
+  .tiles {
+    display: grid; gap: 14px; padding: 18px 20px;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  }
+  .tile {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .tile .label {
+    font-size: 12px; font-weight: 600; letter-spacing: .03em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .tile .value { font-size: 21px; font-weight: 650; letter-spacing: -.02em; margin-top: 6px; }
+  .tile.hero { grid-column: span 2; background: var(--accent-soft); border-color: transparent; }
+  .tile.hero .value { font-size: 34px; }
+  .up { color: var(--positive); }
+  .down { color: var(--negative); }
+  .unknown { color: var(--muted); font-size: 14px; font-weight: 500; }
+
+  .alloc { padding: 18px 20px; display: flex; flex-direction: column; gap: 11px; }
+  .alloc-row { display: flex; align-items: center; gap: 12px; }
+  .alloc-name { width: 108px; font-weight: 550; font-size: 13px; flex: none; }
+  .alloc-track {
+    flex: 1; height: 9px; border-radius: 5px; background: var(--surface-2);
+    border: 1px solid var(--border); overflow: hidden;
+  }
+  .alloc-fill { height: 100%; background: var(--accent); border-radius: 5px; }
+  .alloc-pct {
+    width: 108px; text-align: right; font-size: 13px; color: var(--muted);
+    font-variant-numeric: tabular-nums; flex: none;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 11px; font-weight: 620; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--muted);
+    padding: 10px 20px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  td { padding: 11px 20px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  tr:hover td { background: var(--surface-2); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ticker { font-weight: 600; }
+  .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .acct-head td {
+    background: var(--surface-2); font-weight: 620; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tag {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+    border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; color: var(--muted);
+  }
+  .scroll { overflow-x: auto; }
+  select {
+    font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  }
+  .confirm { display: flex; gap: 8px; align-items: center; }
+</style>
+{% endblock %}
+
+{% block headerextra %}
+<div class="meta">
+  {% if last_refreshed %}Last refreshed {{ last_refreshed.replace("T", " ") }}{% else %}Never refreshed{% endif %}
+</div>
+<form method="post" action="/investments/refresh" id="refreshForm" style="display:flex;gap:8px;align-items:center">
+  <button type="button" id="refreshBtn" class="btn-primary">Refresh</button>
+  <span id="confirmBox" class="confirm" hidden>
+    <span style="font-size:13px;color:var(--muted)">Pull from Plaid?</span>
+    <button type="submit" class="btn-danger">Yes, refresh</button>
+    <button type="button" id="cancelBtn" class="btn-ghost">Cancel</button>
+  </span>
+</form>
+{% endblock %}
+
+{% block content %}
+{% if request.query_params.get("refreshed") %}
+<div class="notice">
+  Refreshed — {{ request.query_params.get("holdings") }} holdings,
+  {{ request.query_params.get("trades") }} trades.
+  {% if request.query_params.get("failed") %}
+    <br><strong>Some accounts failed:</strong> {{ request.query_params.get("failed") }}
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <h2>Portfolio</h2>
+    <div class="spacer"></div>
+    <select onchange="location = '/investments?account=' + this.value">
+      <option value="">All accounts</option>
+      {% for account in account_list %}
+        <option value="{{ account.account_id }}" {{ 'selected' if account.account_id == selected_account }}>
+          {{ account.display_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="tiles">
+    <div class="tile hero">
+      <div class="label">Total value</div>
+      <div class="value">${{ '%.2f'|format(summary.total_value) }}</div>
+    </div>
+    <div class="tile">
+      <div class="label">Cost basis</div>
+      <div class="value">
+        {% if summary.has_cost_basis %}${{ '%.2f'|format(summary.total_cost_basis) }}
+        {% else %}<span class="unknown">Not reported</span>{% endif %}
+      </div>
+    </div>
+    <div class="tile">
+      <div class="label">Unrealised gain</div>
+      <div class="value {{ 'up' if summary.total_gain > 0 else 'down' if summary.total_gain < 0 }}">
+        {% if summary.has_cost_basis %}
+          {{ '+' if summary.total_gain > 0 }}${{ '%.2f'|format(summary.total_gain) }}
+        {% else %}<span class="unknown">Not reported</span>{% endif %}
+      </div>
+    </div>
+    <div class="tile">
+      <div class="label">Return</div>
+      <div class="value {{ 'up' if summary.total_gain_pct > 0 else 'down' if summary.total_gain_pct < 0 }}">
+        {% if summary.has_cost_basis %}
+          {{ '+' if summary.total_gain_pct > 0 }}{{ '%.2f'|format(summary.total_gain_pct) }}%
+        {% else %}<span class="unknown">Not reported</span>{% endif %}
+      </div>
+    </div>
+    <div class="tile">
+      <div class="label">Positions</div>
+      <div class="value">{{ summary.holding_count }}</div>
+    </div>
+  </div>
+</div>
+
+{% if allocation %}
+<div class="card">
+  <div class="card-head"><h2>Allocation</h2></div>
+  <div class="alloc">
+    {% for slice in allocation %}
+      <div class="alloc-row">
+        <div class="alloc-name">{{ slice.label }}</div>
+        <div class="alloc-track"><div class="alloc-fill" style="width: {{ slice.share }}%"></div></div>
+        <div class="alloc-pct">{{ slice.share }}% · ${{ '%.0f'|format(slice.value) }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <h2>Holdings</h2>
+    <div class="spacer"></div>
+    <span style="color:var(--muted);font-size:13px">{{ summary.holding_count }} positions</span>
+  </div>
+  {% if summary.accounts %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Security</th><th class="num">Quantity</th><th class="num">Price</th>
+          <th class="num">Value</th><th class="num">Cost basis</th><th class="num">Gain</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for position in summary.accounts %}
+          <tr class="acct-head">
+            <td>{{ position.name }}</td>
+            <td class="num"></td><td class="num"></td>
+            <td class="num">${{ '%.2f'|format(position.value) }}</td>
+            <td class="num">
+              {% if position.cost_basis %}${{ '%.2f'|format(position.cost_basis) }}{% else %}—{% endif %}
+            </td>
+            <td class="num {{ 'up' if position.gain and position.gain > 0 else 'down' if position.gain and position.gain < 0 }}">
+              {% if position.gain is not none %}
+                {{ '+' if position.gain > 0 }}${{ '%.2f'|format(position.gain) }}
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% for holding in position.holdings %}
+          <tr>
+            <td>
+              <div class="ticker">
+                {{ holding.security.display_name if holding.security else holding.security_id }}
+              </div>
+              {% if holding.security and holding.security.ticker_symbol and holding.security.name %}
+                <div class="sub">{{ holding.security.name }}</div>
+              {% endif %}
+            </td>
+            <td class="num">{{ '%g'|format(holding.quantity) }}</td>
+            <td class="num">
+              {% if holding.institution_price %}${{ '%.2f'|format(holding.institution_price) }}{% else %}—{% endif %}
+            </td>
+            <td class="num">${{ '%.2f'|format(holding.market_value) }}</td>
+            <td class="num">
+              {% if holding.cost_basis %}${{ '%.2f'|format(holding.cost_basis) }}{% else %}—{% endif %}
+            </td>
+            <td class="num {{ 'up' if holding.gain and holding.gain > 0 else 'down' if holding.gain and holding.gain < 0 }}">
+              {% if holding.gain is not none %}
+                {{ '+' if holding.gain > 0 }}${{ '%.2f'|format(holding.gain) }}
+                <div class="sub">{{ '%+.1f'|format(holding.gain_pct) }}%</div>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty">No holdings yet. Hit <strong>Refresh</strong> to pull from Plaid.</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Trade history</h2>
+    <div class="spacer"></div>
+    <span style="color:var(--muted);font-size:13px">{{ trades|length }} shown</span>
+  </div>
+  {% if trades %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th><th>Activity</th><th>Account</th><th>Type</th>
+          <th class="num">Quantity</th><th class="num">Price</th><th class="num">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for trade in trades %}
+        <tr>
+          <td style="white-space:nowrap;color:var(--muted)">{{ trade.date.strftime("%-d %b %Y") }}</td>
+          <td>
+            <div class="ticker">
+              {{ trade.security.display_name if trade.security else trade.display_name }}
+            </div>
+            {% if trade.security and trade.name %}<div class="sub">{{ trade.name }}</div>{% endif %}
+          </td>
+          <td style="color:var(--muted);font-size:13px;white-space:nowrap">
+            {{ accounts[trade.account_id].display_name if trade.account_id in accounts else "—" }}
+          </td>
+          <td><span class="tag">{{ trade.subtype or trade.type or "—" }}</span></td>
+          <td class="num">{% if trade.quantity %}{{ '%g'|format(trade.quantity) }}{% else %}—{% endif %}</td>
+          <td class="num">{% if trade.price %}${{ '%.2f'|format(trade.price) }}{% else %}—{% endif %}</td>
+          <td class="num {{ 'up' if trade.amount and trade.amount < 0 }}">
+            {% if trade.amount is not none %}
+              {% if trade.amount < 0 %}+${{ '%.2f'|format(-trade.amount) }}
+              {% else %}${{ '%.2f'|format(trade.amount) }}{% endif %}
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty">No trades yet.</div>
+  {% endif %}
+</div>
+
+<script>
+// Two-step Refresh: the first click only reveals the confirmation.
+const btn = document.getElementById('refreshBtn');
+const box = document.getElementById('confirmBox');
+btn.addEventListener('click', () => { btn.hidden = true; box.hidden = false; });
+document.getElementById('cancelBtn').addEventListener('click', () => { box.hidden = true; btn.hidden = false; });
+document.getElementById('refreshForm').addEventListener('submit', (e) => {
+  e.submitter.disabled = true;
+  e.submitter.textContent = 'Refreshing…';
+});
+</script>
+{% endblock %}

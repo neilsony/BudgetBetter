@@ -42,6 +42,54 @@ def linked_item(conn):
     return "item-rbc"
 
 
+@pytest.fixture
+def investing_item(conn):
+    """A Wealthsimple Item with one investment Account."""
+    db.upsert_item(
+        conn,
+        item_id="item-ws",
+        institution_id="ins_wealthsimple",
+        institution_name="Wealthsimple",
+        access_token_encrypted="ciphertext",
+        kind="investing",
+    )
+    db.upsert_account(
+        conn,
+        account_id="acc-tfsa",
+        item_id="item-ws",
+        name="TFSA",
+        official_name=None,
+        mask="9012",
+        type="investment",
+        subtype="tfsa",
+    )
+    return "item-ws"
+
+
+@pytest.fixture
+def second_investing_item(conn):
+    """A second investing Item, to prove one Refresh cannot clear another's."""
+    db.upsert_item(
+        conn,
+        item_id="item-other",
+        institution_id="ins_other",
+        institution_name="Other Broker",
+        access_token_encrypted="ciphertext",
+        kind="investing",
+    )
+    db.upsert_account(
+        conn,
+        account_id="acc-other",
+        item_id="item-other",
+        name="RRSP",
+        official_name=None,
+        mask="3456",
+        type="investment",
+        subtype="rrsp",
+    )
+    return "item-other"
+
+
 def raw_txn(
     transaction_id,
     *,

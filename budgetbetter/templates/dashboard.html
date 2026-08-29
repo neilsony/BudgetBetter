@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Dashboard · BudgetBetter{% endblock %}
+{% block title %}Budgeting · BudgetBetter{% endblock %}
+{% block pagetitle %}Budgeting{% endblock %}
 {% block head %}
 <style>
   .tiles {
@@ -74,6 +75,9 @@
   Refreshed — {{ request.query_params.get("added") }} added,
   {{ request.query_params.get("modified") }} updated,
   {{ request.query_params.get("removed") }} removed.
+  {% if request.query_params.get("failed") %}
+    <br><strong>Some accounts failed:</strong> {{ request.query_params.get("failed") }}
+  {% endif %}
 </div>
 {% endif %}
 

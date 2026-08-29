@@ -103,3 +103,102 @@ def test_the_refresh_confirmation_is_hidden_until_the_button_is_clicked(client):
     html = client.get("/").text
     assert '<span id="confirmBox" class="confirm" hidden>' in html
     assert "[hidden] { display: none !important; }" in html
+
+
+@pytest.fixture
+def investing_client(conn, investing_item, monkeypatch):
+    monkeypatch.setenv("PLAID_CLIENT_ID", "test-client")
+    monkeypatch.setenv("PLAID_SECRET", "test-secret")
+    monkeypatch.setenv("APP_ENCRYPTION_KEY", generate_key())
+    get_settings.cache_clear()
+
+    from budgetbetter.investments import HoldingsSnapshot, InvestmentTransactionPage
+    from budgetbetter.investments import apply_holdings_snapshot, apply_investment_transactions
+
+    securities = [
+        {
+            "security_id": "sec-vfv",
+            "name": "Vanguard S&P 500 Index ETF",
+            "ticker_symbol": "VFV",
+            "type": "etf",
+            "close_price": 142.50,
+            "iso_currency_code": "CAD",
+        }
+    ]
+    apply_holdings_snapshot(
+        conn,
+        investing_item,
+        HoldingsSnapshot(
+            accounts=[],
+            securities=securities,
+            holdings=[
+                {
+                    "account_id": "acc-tfsa",
+                    "security_id": "sec-vfv",
+                    "quantity": 10.0,
+                    "institution_price": 142.50,
+                    "institution_value": 1425.0,
+                    "cost_basis": 1200.0,
+                    "iso_currency_code": "CAD",
+                }
+            ],
+        ),
+    )
+    apply_investment_transactions(
+        conn,
+        investing_item,
+        InvestmentTransactionPage(
+            securities=securities,
+            transactions=[
+                {
+                    "investment_transaction_id": "itx-1",
+                    "account_id": "acc-tfsa",
+                    "security_id": "sec-vfv",
+                    "date": dt.date(2026, 8, 3),
+                    "name": "Buy VFV",
+                    "quantity": 5.0,
+                    "amount": 700.0,
+                    "price": 140.0,
+                    "fees": 0.0,
+                    "type": "buy",
+                    "subtype": "buy",
+                    "iso_currency_code": "CAD",
+                }
+            ],
+        ),
+    )
+
+    app.dependency_overrides[get_connection] = lambda: conn
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+    get_settings.cache_clear()
+
+
+def test_the_investments_page_renders_holdings(investing_client):
+    response = investing_client.get("/investments")
+    assert response.status_code == 200
+    assert "VFV" in response.text
+    assert "Total value" in response.text
+
+
+def test_the_investments_page_shows_the_portfolio_value(investing_client):
+    assert "$1425.00" in investing_client.get("/investments").text
+
+
+def test_the_investments_page_shows_unrealised_gain(investing_client):
+    assert "$225.00" in investing_client.get("/investments").text
+
+
+def test_the_investments_page_lists_trade_history(investing_client):
+    assert "Trade history" in investing_client.get("/investments").text
+
+
+def test_the_sidebar_links_both_tabs(investing_client):
+    body = investing_client.get("/investments").text
+    assert 'href="/"' in body and 'href="/investments"' in body
+
+
+def test_the_investments_page_redirects_to_connect_when_nothing_is_linked(client):
+    response = client.get("/investments", follow_redirects=False)
+    assert response.status_code == 303
+    assert "kind=investing" in response.headers["location"]

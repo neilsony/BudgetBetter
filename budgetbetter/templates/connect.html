@@ -1,20 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Connect a bank · BudgetBetter{% endblock %}
+{% block title %}Connect · BudgetBetter{% endblock %}
+{% block pagetitle %}{{ "Investments" if kind == "investing" else "Budgeting" }}{% endblock %}
 {% block head %}<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>{% endblock %}
-{% block headerextra %}
-  {% if items %}<a class="btn" href="/">Dashboard</a>{% endif %}
-{% endblock %}
+
 {% block content %}
 <div class="card">
-  <div class="card-head"><h2>Connect your bank</h2></div>
+  <div class="card-head">
+    <h2>{{ "Connect your brokerage" if kind == "investing" else "Connect your bank" }}</h2>
+  </div>
   <div style="padding: 28px 20px 32px; text-align:center;">
-    <p style="max-width:46ch;margin:0 auto 22px;color:var(--muted)">
+    <p style="max-width:52ch;margin:0 auto 22px;color:var(--muted)">
       {% if is_sandbox %}
-        You are in <strong>Sandbox</strong>, so pick any test bank and sign in with
+        You are in <strong>Sandbox</strong>, so pick any test institution and sign in with
         <code>user_good</code> / <code>pass_good</code>.
+      {% elif kind == "investing" %}
+        Sign in to Wealthsimple to track your holdings and trades. Your credentials go
+        straight to Plaid — this app never sees them.
       {% else %}
-        Sign in to Royal Bank of Canada. Your credentials go straight to Plaid — this app
-        never sees them.
+        Sign in to your bank to track spending. Your credentials go straight to Plaid —
+        this app never sees them.
       {% endif %}
     </p>
     <button id="link" class="btn-primary" style="padding:11px 22px;font-size:15px">
@@ -41,13 +45,17 @@
 {% endif %}
 
 <script>
+const KIND = "{{ kind }}";
+const AFTER = KIND === "investing" ? "/investments" : "/";
 const status = document.getElementById('status');
 
 document.getElementById('link').addEventListener('click', async () => {
   status.textContent = 'Opening Plaid…';
   let res, data;
   try {
-    res = await fetch('/api/link-token', { method: 'POST' });
+    const body = new FormData();
+    body.append('kind', KIND);
+    res = await fetch('/api/link-token', { method: 'POST', body });
     data = await res.json();
   } catch (e) {
     status.textContent = 'Could not reach the server: ' + e.message;
@@ -64,10 +72,11 @@ document.getElementById('link').addEventListener('click', async () => {
       status.textContent = 'Saving your connection…';
       const body = new FormData();
       body.append('public_token', publicToken);
+      body.append('kind', KIND);
       const saved = await fetch('/api/exchange', { method: 'POST', body });
       if (saved.ok) {
-        status.textContent = 'Connected. Taking you to the dashboard…';
-        window.location = '/';
+        status.textContent = 'Connected. Taking you to your dashboard…';
+        window.location = AFTER;
       } else {
         status.textContent = 'Could not save the connection.';
       }
