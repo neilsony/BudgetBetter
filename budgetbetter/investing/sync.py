@@ -10,8 +10,9 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from budgetbetter import db
-from budgetbetter.models import Holding, InvestmentTransaction, Security
+from budgetbetter.core import db
+from budgetbetter.investing import db as investing_db
+from budgetbetter.investing.models import Holding, InvestmentTransaction, Security
 
 
 @dataclass
@@ -60,6 +61,7 @@ def parse_security(raw: dict) -> Security:
         type=str(raw["type"]) if raw.get("type") else None,
         close_price=_as_float(raw.get("close_price")),
         iso_currency_code=raw.get("iso_currency_code"),
+        close_price_as_of=_as_date(raw.get("close_price_as_of")),
     )
 
 
@@ -102,6 +104,9 @@ def parse_investment_transaction(raw: dict) -> InvestmentTransaction:
 
 def _store_accounts(connection: sqlite3.Connection, item_id: str, raw_accounts: Iterable[dict]):
     for raw_account in raw_accounts:
+        # Cash is not a Holding: it is whatever the Account balance holds over
+        # and above the securities in it. See ADR-0010.
+        balances = raw_account.get("balances") or {}
         db.upsert_account(
             connection,
             account_id=raw_account["account_id"],
@@ -111,12 +116,13 @@ def _store_accounts(connection: sqlite3.Connection, item_id: str, raw_accounts: 
             mask=raw_account.get("mask"),
             type=str(raw_account.get("type") or "investment"),
             subtype=str(raw_account.get("subtype")) if raw_account.get("subtype") else None,
+            current_balance=_as_float(balances.get("current")),
         )
 
 
 def _store_securities(connection: sqlite3.Connection, raw_securities: Iterable[dict]) -> None:
     for raw_security in raw_securities:
-        db.upsert_security(connection, parse_security(raw_security))
+        investing_db.upsert_security(connection, parse_security(raw_security))
 
 
 def _account_ids_for(connection: sqlite3.Connection, item_id: str) -> list[str]:
@@ -139,7 +145,7 @@ def apply_holdings_snapshot(
     account_ids = set(_account_ids_for(connection, item_id))
     account_ids.update(holding.account_id for holding in holdings)
 
-    db.replace_holdings(connection, account_ids, holdings)
+    investing_db.replace_holdings(connection, account_ids, holdings)
     connection.commit()
     return len(holdings)
 
@@ -150,7 +156,7 @@ def apply_investment_transactions(
     """Store one page of trades, leaving already-stored ones correct."""
     _store_securities(connection, page.securities)
     for raw in page.transactions:
-        db.upsert_investment_transaction(connection, parse_investment_transaction(raw))
+        investing_db.upsert_investment_transaction(connection, parse_investment_transaction(raw))
     connection.commit()
     return len(page.transactions)
 

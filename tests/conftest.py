@@ -2,7 +2,7 @@ import datetime as dt
 
 import pytest
 
-from budgetbetter import db
+from budgetbetter.core import db
 
 
 @pytest.fixture

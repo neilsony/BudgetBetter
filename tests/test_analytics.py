@@ -1,9 +1,9 @@
 import datetime as dt
 
-from budgetbetter import db
-from budgetbetter.analytics import category_totals, trend_series
-from budgetbetter.buckets import SEED_RULES
-from budgetbetter.sync import SyncPage, apply_sync_page
+
+from budgetbetter.budgeting.analytics import category_totals, trend_series
+from budgetbetter.budgeting.buckets import SEED_RULES
+from budgetbetter.budgeting.sync import SyncPage, apply_sync_page
 
 from conftest import raw_txn
 

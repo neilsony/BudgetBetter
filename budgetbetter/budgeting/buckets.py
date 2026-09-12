@@ -4,7 +4,7 @@ Buckets are this project's own spending categories, as opposed to the Plaid
 Category that arrives on each Transaction. See CONTEXT.md and ADR-0003.
 """
 
-from budgetbetter.models import Rule
+from budgetbetter.budgeting.models import Rule
 
 GROCERIES = "groceries"
 EATING_OUT = "eating_out"

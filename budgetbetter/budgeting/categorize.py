@@ -6,12 +6,12 @@ Rule (detailed before primary), then `other`.
 
 from typing import Iterable
 
-from budgetbetter.buckets import (
+from budgetbetter.budgeting.buckets import (
     INTERNAL_TRANSFER_DETAILED,
     INTERNAL_TRANSFER_PRIMARY,
     OTHER,
 )
-from budgetbetter.models import Rule, RuleKind, Transaction
+from budgetbetter.budgeting.models import Rule, RuleKind, Transaction
 
 __all__ = ["Rule", "RuleKind", "resolve_bucket", "is_internal_transfer"]
 

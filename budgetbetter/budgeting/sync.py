@@ -10,10 +10,11 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Iterable
 
-from budgetbetter import db
-from budgetbetter.buckets import NON_SPENDING_BUCKETS, TRANSFERS
-from budgetbetter.categorize import Rule, is_internal_transfer, resolve_bucket
-from budgetbetter.models import Transaction
+from budgetbetter.core import db
+from budgetbetter.budgeting import db as budgeting_db
+from budgetbetter.budgeting.buckets import NON_SPENDING_BUCKETS, TRANSFERS
+from budgetbetter.budgeting.categorize import Rule, is_internal_transfer, resolve_bucket
+from budgetbetter.budgeting.models import Transaction
 
 
 @dataclass
@@ -122,9 +123,9 @@ def apply_sync_page(
     for raw in list(page.added) + list(page.modified):
         transaction = parse_transaction(raw, rules)
         _ensure_account(connection, item_id, transaction.account_id)
-        db.upsert_transaction(connection, transaction)
+        budgeting_db.upsert_transaction(connection, transaction)
 
-    db.delete_transactions(connection, page.removed)
+    budgeting_db.delete_transactions(connection, page.removed)
 
     if page.next_cursor:
         db.set_cursor(connection, item_id, page.next_cursor)

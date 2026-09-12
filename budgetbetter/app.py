@@ -12,13 +12,19 @@ from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from budgetbetter import analytics, db, plaid_client, portfolio
-from budgetbetter.buckets import BUCKET_LABELS, BUCKETS
+from budgetbetter.budgeting import analytics
+from budgetbetter.budgeting import db as budgeting_db
+from budgetbetter.budgeting import plaid as budgeting_plaid
+from budgetbetter.budgeting.buckets import BUCKET_LABELS, BUCKETS
+from budgetbetter.budgeting.schedule import next_payday
+from budgetbetter.budgeting.sync import refresh_item
 from budgetbetter.config import get_settings
+from budgetbetter.core import db, plaid_client
 from budgetbetter.crypto import TokenCipher
-from budgetbetter.investments import refresh_investments
-from budgetbetter.schedule import next_payday
-from budgetbetter.sync import refresh_item
+from budgetbetter.investing import db as investing_db
+from budgetbetter.investing import plaid as investing_plaid
+from budgetbetter.investing import portfolio
+from budgetbetter.investing.sync import refresh_investments
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
 
@@ -104,7 +110,7 @@ def dashboard(
         periods=8 if granularity == "week" else 6,
         account_id=account_id,
     )
-    transactions = db.list_transactions(
+    transactions = budgeting_db.list_transactions(
         connection, start=start, end=end, account_id=account_id, limit=300
     )
     budgeting_ids = {
@@ -162,7 +168,7 @@ def investments_page(
     account_id = account or None
 
     summary = portfolio.portfolio_summary(connection, account_id=account_id)
-    trades = db.list_investment_transactions(connection, account_id=account_id, limit=300)
+    trades = investing_db.list_investment_transactions(connection, account_id=account_id, limit=300)
 
     return TEMPLATES.TemplateResponse(
         request=request,
@@ -282,8 +288,8 @@ def do_refresh(connection=Depends(get_connection)):
             result = refresh_item(
                 connection,
                 item["item_id"],
-                plaid_client.make_page_fetcher(client, access_token),
-                db.list_rules(connection),
+                budgeting_plaid.make_page_fetcher(client, access_token),
+                budgeting_db.list_rules(connection),
             )
             added += result.added
             modified += result.modified
@@ -312,8 +318,8 @@ def do_refresh_investments(connection=Depends(get_connection)):
             result = refresh_investments(
                 connection,
                 item["item_id"],
-                plaid_client.make_holdings_fetcher(client, access_token),
-                plaid_client.make_investment_transactions_fetcher(client, access_token),
+                investing_plaid.make_holdings_fetcher(client, access_token),
+                investing_plaid.make_investment_transactions_fetcher(client, access_token),
             )
             holdings += result.holdings
             trades += result.trades
@@ -335,5 +341,5 @@ def set_bucket(
     """Set or clear an Override on one Transaction. See ADR-0003."""
     if bucket not in BUCKETS:
         return JSONResponse({"ok": False, "error": f"Unknown bucket {bucket!r}"}, status_code=400)
-    db.set_override(connection, transaction_id, bucket)
+    budgeting_db.set_override(connection, transaction_id, bucket)
     return {"ok": True, "bucket": bucket}

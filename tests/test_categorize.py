@@ -1,8 +1,8 @@
 import datetime as dt
 
-from budgetbetter.buckets import OTHER, SEED_RULES
-from budgetbetter.categorize import Rule, is_internal_transfer, resolve_bucket
-from budgetbetter.models import Transaction
+from budgetbetter.budgeting.buckets import OTHER, SEED_RULES
+from budgetbetter.budgeting.categorize import Rule, is_internal_transfer, resolve_bucket
+from budgetbetter.budgeting.models import Transaction
 
 
 def txn(

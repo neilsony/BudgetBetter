@@ -18,7 +18,9 @@
   }
   .tile .value { font-size: 21px; font-weight: 650; letter-spacing: -.02em; margin-top: 6px; }
   .tile.hero { grid-column: span 2; background: var(--accent-soft); border-color: transparent; }
-  .tile.hero .value { font-size: 34px; }
+  .tile.hero .value { font-size: 32px; }
+  .tile.gain-up { background: color-mix(in srgb, var(--positive) 12%, transparent); }
+  .tile.gain-down { background: color-mix(in srgb, var(--negative) 12%, transparent); }
   .up { color: var(--positive); }
   .down { color: var(--negative); }
   .unknown { color: var(--muted); font-size: 14px; font-weight: 500; }
@@ -109,6 +111,29 @@
       <div class="label">Total value</div>
       <div class="value">${{ '%.2f'|format(summary.total_value) }}</div>
     </div>
+    <div class="tile hero {{ 'gain-up' if summary.all_time_gain > 0 else 'gain-down' if summary.all_time_gain < 0 }}">
+      <div class="label">All-time return</div>
+      <div class="value {{ 'up' if summary.all_time_gain > 0 else 'down' if summary.all_time_gain < 0 }}">
+        {% if summary.has_contributions %}
+          {{ '+' if summary.all_time_gain > 0 }}${{ '%.2f'|format(summary.all_time_gain) }}
+          <span style="font-size:18px">
+            ({{ '+' if summary.all_time_gain_pct > 0 }}{{ '%.2f'|format(summary.all_time_gain_pct) }}%)
+          </span>
+        {% else %}<span class="unknown">Not enough history</span>{% endif %}
+      </div>
+    </div>
+    <div class="tile">
+      <div class="label">Net deposits</div>
+      <div class="value">${{ '%.2f'|format(summary.net_contributions) }}</div>
+    </div>
+    <div class="tile">
+      <div class="label">Invested</div>
+      <div class="value">${{ '%.2f'|format(summary.total_securities) }}</div>
+    </div>
+    <div class="tile">
+      <div class="label">Cash</div>
+      <div class="value">${{ '%.2f'|format(summary.total_cash) }}</div>
+    </div>
     <div class="tile">
       <div class="label">Cost basis</div>
       <div class="value">
@@ -117,18 +142,15 @@
       </div>
     </div>
     <div class="tile">
-      <div class="label">Unrealised gain</div>
+      <div class="label" title="Gain on the positions you still hold, ignoring anything already sold.">
+        Unrealised gain
+      </div>
       <div class="value {{ 'up' if summary.total_gain > 0 else 'down' if summary.total_gain < 0 }}">
         {% if summary.has_cost_basis %}
           {{ '+' if summary.total_gain > 0 }}${{ '%.2f'|format(summary.total_gain) }}
-        {% else %}<span class="unknown">Not reported</span>{% endif %}
-      </div>
-    </div>
-    <div class="tile">
-      <div class="label">Return</div>
-      <div class="value {{ 'up' if summary.total_gain_pct > 0 else 'down' if summary.total_gain_pct < 0 }}">
-        {% if summary.has_cost_basis %}
-          {{ '+' if summary.total_gain_pct > 0 }}{{ '%.2f'|format(summary.total_gain_pct) }}%
+          <span style="font-size:13px;color:var(--muted)">
+            {{ '+' if summary.total_gain_pct > 0 }}{{ '%.2f'|format(summary.total_gain_pct) }}%
+          </span>
         {% else %}<span class="unknown">Not reported</span>{% endif %}
       </div>
     </div>
@@ -137,6 +159,16 @@
       <div class="value">{{ summary.holding_count }}</div>
     </div>
   </div>
+
+  {% if summary.unpriced_count %}
+    <div style="padding: 0 20px 18px; color: var(--muted); font-size: 13px;">
+      Plaid returned no price for {{ summary.unpriced_count }}
+      position{{ 's' if summary.unpriced_count != 1 }}, so
+      {{ 'they are' if summary.unpriced_count != 1 else 'it is' }} left out of Invested and
+      Cost basis. Total value still counts {{ 'them' if summary.unpriced_count != 1 else 'it' }},
+      because it comes from your broker's own balance.
+    </div>
+  {% endif %}
 </div>
 
 {% if allocation %}
@@ -178,12 +210,26 @@
             <td class="num">
               {% if position.cost_basis %}${{ '%.2f'|format(position.cost_basis) }}{% else %}—{% endif %}
             </td>
+            {# closes below so the gain cell keeps its existing markup #}
             <td class="num {{ 'up' if position.gain and position.gain > 0 else 'down' if position.gain and position.gain < 0 }}">
               {% if position.gain is not none %}
                 {{ '+' if position.gain > 0 }}${{ '%.2f'|format(position.gain) }}
               {% else %}—{% endif %}
             </td>
           </tr>
+          {% if position.cash %}
+          <tr>
+            <td>
+              <div class="ticker">Cash</div>
+              <div class="sub">Uninvested balance</div>
+            </td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+            <td class="num">${{ '%.2f'|format(position.cash) }}</td>
+            <td class="num">—</td>
+            <td class="num">—</td>
+          </tr>
+          {% endif %}
           {% for holding in position.holdings %}
           <tr>
             <td>
@@ -196,9 +242,21 @@
             </td>
             <td class="num">{{ '%g'|format(holding.quantity) }}</td>
             <td class="num">
-              {% if holding.institution_price %}${{ '%.2f'|format(holding.institution_price) }}{% else %}—{% endif %}
+              {% if holding.effective_price %}
+                ${{ '%.2f'|format(holding.effective_price) }}
+                {% if holding.price_is_fallback %}
+                  <div class="sub" title="Your broker reported no live price, so this is the last close.">
+                    close{% if holding.security and holding.security.close_price_as_of %}
+                      {{ holding.security.close_price_as_of.strftime("%-d %b") }}
+                    {% endif %}
+                  </div>
+                {% endif %}
+              {% else %}—{% endif %}
             </td>
-            <td class="num">${{ '%.2f'|format(holding.market_value) }}</td>
+            <td class="num">
+              {% if holding.is_priced %}${{ '%.2f'|format(holding.market_value) }}
+              {% else %}<span class="unknown">—</span>{% endif %}
+            </td>
             <td class="num">
               {% if holding.cost_basis %}${{ '%.2f'|format(holding.cost_basis) }}{% else %}—{% endif %}
             </td>

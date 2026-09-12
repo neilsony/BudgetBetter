@@ -2,9 +2,10 @@
 
 import pytest
 
-from budgetbetter import db
-from budgetbetter.buckets import SEED_RULES
-from budgetbetter.sync import SyncPage, apply_sync_page, parse_transaction, refresh_item
+from budgetbetter.core import db
+from budgetbetter.budgeting import db as budgeting_db
+from budgetbetter.budgeting.buckets import SEED_RULES
+from budgetbetter.budgeting.sync import SyncPage, apply_sync_page, parse_transaction, refresh_item
 
 from conftest import raw_txn
 
@@ -82,7 +83,7 @@ class TestTransferSafetyNet:
             SyncPage(added=[raw_txn("t1", amount=500.0, **CARD_PAYMENT)], next_cursor="c"),
             rules=[],
         )
-        assert db.list_transactions(conn)[0].effective_bucket == "transfers"
+        assert budgeting_db.list_transactions(conn)[0].effective_bucket == "transfers"
 
 
 class TestListLimit:
@@ -90,4 +91,4 @@ class TestListLimit:
         apply_sync_page(
             conn, linked_item, SyncPage(added=[raw_txn("t1")], next_cursor="c"), SEED_RULES
         )
-        assert db.list_transactions(conn, limit=0) == []
+        assert budgeting_db.list_transactions(conn, limit=0) == []

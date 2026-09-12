@@ -5,12 +5,12 @@ import datetime as dt
 import pytest
 from fastapi.testclient import TestClient
 
-from budgetbetter import db
+from budgetbetter.budgeting import db as budgeting_db
 from budgetbetter.app import app, get_connection
-from budgetbetter.buckets import SEED_RULES
+from budgetbetter.budgeting.buckets import SEED_RULES
 from budgetbetter.config import get_settings
 from budgetbetter.crypto import generate_key
-from budgetbetter.sync import SyncPage, apply_sync_page
+from budgetbetter.budgeting.sync import SyncPage, apply_sync_page
 
 from conftest import raw_txn
 
@@ -82,7 +82,7 @@ def test_an_unknown_range_falls_back_instead_of_erroring(client):
 def test_setting_a_bucket_by_hand_stores_an_override(client, conn):
     response = client.post("/transactions/t1/bucket", data={"bucket": "clothes"})
     assert response.status_code == 200
-    assert db.list_transactions(conn, account_id="acc-chequing")[0].effective_bucket == "clothes"
+    assert budgeting_db.list_transactions(conn, account_id="acc-chequing")[0].effective_bucket == "clothes"
 
 
 def test_the_setup_page_appears_when_settings_are_missing(client, monkeypatch):
@@ -95,7 +95,7 @@ def test_an_unknown_bucket_is_rejected_and_leaves_the_override_alone(client, con
     client.post("/transactions/t1/bucket", data={"bucket": "clothes"})
     response = client.post("/transactions/t1/bucket", data={"bucket": "not-a-bucket"})
     assert response.status_code == 400
-    assert db.list_transactions(conn, account_id="acc-chequing")[0].effective_bucket == "clothes"
+    assert budgeting_db.list_transactions(conn, account_id="acc-chequing")[0].effective_bucket == "clothes"
 
 
 def test_the_refresh_confirmation_is_hidden_until_the_button_is_clicked(client):
@@ -112,8 +112,8 @@ def investing_client(conn, investing_item, monkeypatch):
     monkeypatch.setenv("APP_ENCRYPTION_KEY", generate_key())
     get_settings.cache_clear()
 
-    from budgetbetter.investments import HoldingsSnapshot, InvestmentTransactionPage
-    from budgetbetter.investments import apply_holdings_snapshot, apply_investment_transactions
+    from budgetbetter.investing.sync import HoldingsSnapshot, InvestmentTransactionPage
+    from budgetbetter.investing.sync import apply_holdings_snapshot, apply_investment_transactions
 
     securities = [
         {

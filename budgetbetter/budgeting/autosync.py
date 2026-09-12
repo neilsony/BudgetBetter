@@ -7,11 +7,12 @@ Payday, because a launchd interval cannot express "every second Friday".
 import datetime as dt
 import sys
 
-from budgetbetter import db, plaid_client
+from budgetbetter.core import db
+from budgetbetter.budgeting import db as budgeting_db
 from budgetbetter.config import get_settings
 from budgetbetter.crypto import TokenCipher
-from budgetbetter.schedule import is_payday, next_payday
-from budgetbetter.sync import refresh_item
+from budgetbetter.budgeting.schedule import is_payday, next_payday
+from budgetbetter.budgeting.sync import refresh_item
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,8 +46,8 @@ def main(argv: list[str] | None = None) -> int:
             result = refresh_item(
                 connection,
                 item["item_id"],
-                plaid_client.make_page_fetcher(client, cipher.decrypt(item["access_token_encrypted"])),
-                db.list_rules(connection),
+                budgeting_plaid.make_page_fetcher(client, cipher.decrypt(item["access_token_encrypted"])),
+                budgeting_db.list_rules(connection),
             )
             print(
                 f"{name}: {result.added} added, {result.modified} updated, "

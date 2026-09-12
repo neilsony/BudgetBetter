@@ -1,6 +1,6 @@
 import datetime as dt
 
-from budgetbetter.schedule import ANCHOR_PAYDAY, is_payday, next_payday
+from budgetbetter.budgeting.schedule import ANCHOR_PAYDAY, is_payday, next_payday
 
 
 def test_the_anchor_date_is_a_payday():

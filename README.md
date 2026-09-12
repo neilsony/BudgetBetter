@@ -46,15 +46,28 @@ Force one by hand with `.venv/bin/python -m budgetbetter.autosync --force`.
 
 ## How it fits together
 
-| Module | Job |
-| --- | --- |
-| `app.py` | The web app: Connect, Dashboard, Refresh |
-| `plaid_client.py` | Every call to Plaid, so nothing else touches the network |
-| `sync.py` | Pages through `/transactions/sync` and applies changes idempotently |
-| `categorize.py`, `buckets.py` | Turning a Plaid category into one of your Buckets |
-| `analytics.py` | The dashboard tiles and the trend chart |
-| `db.py`, `schema.sql` | The local SQLite store |
-| `schedule.py`, `autosync.py` | The payday cadence |
+Each domain owns its whole vertical — nouns, tables, Plaid calls and maths.
+`core` serves both and depends on neither. See [ADR-0012](docs/adr/0012-package-layout-by-domain.md).
+
+```
+budgetbetter/
+├── app.py                  The web app: sidebar, both dashboards, Refresh
+├── config.py, crypto.py    Settings from .env, and token encryption
+├── core/                   Shared: connection, Items, Accounts, Plaid client
+│   ├── db.py  models.py  plaid_client.py  schema.sql
+├── budgeting/              Spending
+│   ├── sync.py             Pages through /transactions/sync, idempotently
+│   ├── categorize.py       Plaid category → your Bucket
+│   ├── buckets.py          The Bucket vocabulary and seed Rules
+│   ├── analytics.py        Category tiles and the trend chart
+│   ├── schedule.py         The payday cadence
+│   ├── autosync.py         The launchd entry point
+│   └── db.py  models.py  plaid.py  schema.sql
+└── investing/              Holdings and trades
+    ├── sync.py             Holdings snapshot + trade history
+    ├── portfolio.py        Value, cash, all-time return, allocation
+    └── db.py  models.py  plaid.py  schema.sql
+```
 
 `CONTEXT.md` defines the vocabulary; `docs/adr/` records why things are the way
 they are.

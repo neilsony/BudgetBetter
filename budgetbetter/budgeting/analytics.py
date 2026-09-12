@@ -8,8 +8,8 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Literal
 
-from budgetbetter import db
-from budgetbetter.buckets import INCOME, NON_SPENDING_BUCKETS
+from budgetbetter.budgeting import db as budgeting_db
+from budgetbetter.budgeting.buckets import INCOME, NON_SPENDING_BUCKETS
 
 Granularity = Literal["week", "month"]
 
@@ -39,7 +39,7 @@ def category_totals(
     account_id: str | None = None,
 ) -> SpendingSummary:
     """Spending per Bucket over a period, summed across every Account."""
-    transactions = db.list_transactions(
+    transactions = budgeting_db.list_transactions(
         connection, start=start, end=end, account_id=account_id
     )
 
@@ -106,7 +106,7 @@ def trend_series(
         starts.append(cursor)
         cursor = _step_back(cursor, granularity, -1)
 
-    for transaction in db.list_transactions(
+    for transaction in budgeting_db.list_transactions(
         connection, start=first_period, account_id=account_id
     ):
         if transaction.effective_bucket in NON_SPENDING_BUCKETS:
