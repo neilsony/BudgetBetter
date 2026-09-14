@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Sign in · BudgetBetter{% endblock %}
+{% block pagetitle %}Sign in{% endblock %}
+
+{% block head %}
+<style>
+  .auth { max-width: 380px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field input {
+    width: 100%; font: inherit; padding: 9px 12px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  }
+  .field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .err { color: var(--negative); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card auth">
+  <div class="card-head"><h2>Household</h2></div>
+  <div style="padding: 20px">
+    {% if error %}<div class="notice err">{{ error }}</div>{% endif %}
+    <form method="post" action="/household/login">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required autofocus autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password">
+      </div>
+      <button class="btn-primary" type="submit">Sign in</button>
+    </form>
+    <p class="meta" style="text-align:left;margin-top:16px">
+      New here? <a href="/household/register">Register with the House PIN</a>.
+    </p>
+  </div>
+</div>
+{% endblock %}

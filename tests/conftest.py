@@ -3,6 +3,8 @@ import datetime as dt
 import pytest
 
 from budgetbetter.core import db
+from budgetbetter.household import auth
+from budgetbetter.household import db as household_db
 
 
 @pytest.fixture
@@ -11,6 +13,50 @@ def conn():
     db.initialise(connection)
     yield connection
     connection.close()
+
+
+# --- Household -------------------------------------------------------------
+#
+# The budgeting and investing pages require the Owner (ADR-0014), so every page
+# test needs a signed-in one.
+
+PASSWORD = "correcthorsebattery"
+
+
+@pytest.fixture
+def make_member(conn):
+    """Register someone directly, skipping the House PIN."""
+
+    def _make(name, email, role="member"):
+        with db.writing(conn):
+            member_id = household_db.create_member(
+                conn,
+                name=name,
+                email=email,
+                password_hash=auth.hash_secret(PASSWORD),
+                role=role,
+            )
+        return household_db.get_member(conn, member_id)
+
+    return _make
+
+
+@pytest.fixture
+def owner(make_member):
+    return make_member("Neil", "neil@example.com", role="owner")
+
+
+@pytest.fixture
+def roommate(make_member):
+    return make_member("Zak", "zak@example.com")
+
+
+def sign_in(conn, member):
+    """Cookies for a TestClient, as that Member."""
+    token = auth.new_session_token()
+    with db.writing(conn):
+        household_db.create_session(conn, token=token, member_id=member.id)
+    return {auth.SESSION_COOKIE: token}
 
 
 @pytest.fixture

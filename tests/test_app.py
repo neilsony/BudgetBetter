@@ -12,11 +12,11 @@ from budgetbetter.config import get_settings
 from budgetbetter.crypto import generate_key
 from budgetbetter.budgeting.sync import SyncPage, apply_sync_page
 
-from conftest import raw_txn
+from conftest import raw_txn, sign_in
 
 
 @pytest.fixture
-def client(conn, linked_item, monkeypatch):
+def client(conn, linked_item, owner, monkeypatch):
     monkeypatch.setenv("PLAID_CLIENT_ID", "test-client")
     monkeypatch.setenv("PLAID_SECRET", "test-secret")
     monkeypatch.setenv("APP_ENCRYPTION_KEY", generate_key())
@@ -51,7 +51,7 @@ def client(conn, linked_item, monkeypatch):
     )
 
     app.dependency_overrides[get_connection] = lambda: conn
-    yield TestClient(app)
+    yield TestClient(app, cookies=sign_in(conn, owner))
     app.dependency_overrides.clear()
     get_settings.cache_clear()
 
@@ -106,7 +106,7 @@ def test_the_refresh_confirmation_is_hidden_until_the_button_is_clicked(client):
 
 
 @pytest.fixture
-def investing_client(conn, investing_item, monkeypatch):
+def investing_client(conn, investing_item, owner, monkeypatch):
     monkeypatch.setenv("PLAID_CLIENT_ID", "test-client")
     monkeypatch.setenv("PLAID_SECRET", "test-secret")
     monkeypatch.setenv("APP_ENCRYPTION_KEY", generate_key())
@@ -169,7 +169,7 @@ def investing_client(conn, investing_item, monkeypatch):
     )
 
     app.dependency_overrides[get_connection] = lambda: conn
-    yield TestClient(app)
+    yield TestClient(app, cookies=sign_in(conn, owner))
     app.dependency_overrides.clear()
     get_settings.cache_clear()
 

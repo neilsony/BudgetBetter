@@ -20,6 +20,9 @@ class Settings:
     plaid_env: str
     encryption_key: str
     database_path: Path
+    # Seeds the House PIN on first boot. After that the Owner changes it in the
+    # UI, so rotating it when someone moves out needs no redeploy. See ADR-0019.
+    household_pin: str = ""
 
     @property
     def is_sandbox(self) -> bool:
@@ -45,4 +48,5 @@ def get_settings() -> Settings:
         plaid_env=os.getenv("PLAID_ENV", "sandbox").strip(),
         encryption_key=os.getenv("APP_ENCRYPTION_KEY", "").strip(),
         database_path=(PROJECT_ROOT / database) if not os.path.isabs(database) else Path(database),
+        household_pin=os.getenv("HOUSEHOLD_PIN", "").strip(),
     )

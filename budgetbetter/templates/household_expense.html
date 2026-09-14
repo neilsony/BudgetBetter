@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}{{ expense.description }} · BudgetBetter{% endblock %}
+{% block pagetitle %}{{ expense.description }}{% endblock %}
+
+{% block headerextra %}
+  <div class="meta">
+    {{ expense.amount }} · {{ expense.incurred_on }}<br>
+    paid by {{ members[expense.payer_id].name if expense.payer_id in members else 'someone' }}
+  </div>
+{% endblock %}
+
+{% block head %}
+<style>
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 11px 20px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
+  tr:last-child td { border-bottom: 0; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 650; border: 1px solid var(--border); }
+  .badge.paid { color: var(--positive); }
+  .badge.claimed { color: var(--accent); background: var(--accent-soft); }
+  .badge.disputed { color: var(--negative); }
+  .badge.void { color: var(--muted); }
+  .greyed { opacity: .55; }
+  .inline { display: inline; }
+  .pad { padding: 16px 20px; }
+  .err { color: var(--negative); }
+  textarea, input[type=text] {
+    font: inherit; padding: 8px 11px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  }
+  textarea { width: 100%; min-height: 60px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if error %}<div class="notice err">{{ error }}</div>{% endif %}
+
+{% if expense.is_void %}
+  <div class="notice">This expense was deleted. It is kept here for the record.</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <h2>Shares</h2>
+    <span class="sub">{{ split_labels.get(expense.split_mode, expense.split_mode) }}</span>
+    <div class="spacer"></div>
+    {% if expense.is_rent %}<span class="pill">Rent</span>{% endif %}
+    {% if expense.is_resolution %}<span class="pill">Dispute resolution</span>{% endif %}
+  </div>
+  <div class="scroll"><table>
+    <tr><th>Person</th><th>Status</th><th class="num">Amount</th><th></th></tr>
+    {% for share in expense.shares %}
+    <tr class="{{ 'greyed' if share.status in ('void', 'disputed') or share.written_off }}">
+      <td>
+        {{ members[share.member_id].name if share.member_id in members else 'Someone' }}
+        {% if share.member_id == expense.payer_id %}<span class="sub">· paid it</span>{% endif %}
+        {% if share.id in pending %}
+          <div class="sub">Disputed: {{ pending[share.id].reason }}</div>
+        {% endif %}
+      </td>
+      <td>
+        {% if share.written_off %}<span class="badge void">Written off</span>
+        {% elif share.status == 'paid' %}<span class="badge paid">Paid</span>
+        {% elif share.status == 'claimed' %}<span class="badge claimed">Says sent</span>
+        {% elif share.status == 'disputed' %}<span class="badge disputed">Disputed</span>
+        {% elif share.status == 'void' %}<span class="badge void">Removed</span>
+        {% else %}<span class="badge">Owed</span>{% endif %}
+      </td>
+      <td class="num">{{ share.amount_cents | money }}</td>
+      <td class="num">
+        {% if not expense.is_void %}
+          {% if share.member_id == member.id and share.status == 'owed' %}
+            <form class="inline" method="post" action="/household/shares/{{ share.id }}/claim">
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <button style="padding:5px 11px;font-size:13px">I've sent this</button>
+            </form>
+          {% endif %}
+          {% if expense.payer_id == member.id and share.status in ('owed', 'claimed') and share.member_id != member.id %}
+            <form class="inline" method="post" action="/household/shares/{{ share.id }}/paid">
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <button class="btn-primary" style="padding:5px 11px;font-size:13px">
+                {{ 'Confirm' if share.status == 'claimed' else 'Mark paid' }}
+              </button>
+            </form>
+          {% endif %}
+          {% if share.status in ('paid', 'claimed') and (expense.payer_id == member.id or share.member_id == member.id) %}
+            <form class="inline" method="post" action="/household/shares/{{ share.id }}/unmark">
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <button class="btn-ghost" style="padding:5px 9px;font-size:12px">Undo</button>
+            </form>
+          {% endif %}
+          {% if is_owner and share.status in ('owed', 'claimed') and not share.written_off %}
+            <form class="inline" method="post" action="/household/shares/{{ share.id }}/write-off">
+              <input type="hidden" name="csrf" value="{{ csrf }}">
+              <input type="hidden" name="reason" value="Written off by the Owner">
+              <button class="btn-ghost" style="padding:5px 9px;font-size:12px">Write off</button>
+            </form>
+          {% endif %}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+
+{% set my_share = expense.shares | selectattr('member_id', 'equalto', member.id) | first %}
+{% if my_share and expense.disputable and my_share.status in ('owed', 'claimed') %}
+<div class="card">
+  <div class="card-head"><h2>Something wrong with your share?</h2></div>
+  <form class="pad" method="post" action="/household/shares/{{ my_share.id }}/dispute">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <p class="sub" style="margin-top:0">
+      Disputing takes your {{ my_share.amount_cents | money }} out of everyone's totals
+      until the Owner decides. It affects nobody else's share in the meantime.
+    </p>
+    <textarea name="reason" required placeholder="Why is this unfair?"></textarea>
+    <div style="margin-top:10px"><button class="btn-danger" type="submit">Dispute this share</button></div>
+  </form>
+</div>
+{% elif my_share and expense.is_rent %}
+  <div class="notice">
+    Rent cannot be disputed — the amounts come from the table the Owner keeps.
+    If yours is wrong, tell them.
+  </div>
+{% endif %}
+
+{% if not expense.is_void and (expense.payer_id == member.id or expense.created_by == member.id) %}
+<div class="card">
+  <div class="card-head"><h2>Fix or delete this expense</h2></div>
+  <div class="pad">
+    {% if expense.locked %}
+      <p class="sub" style="margin:0">
+        Someone has already paid or disputed this, so it can no longer be changed —
+        the money has genuinely moved. Post a corrective expense the other way instead.
+      </p>
+    {% else %}
+      <form method="post" action="/household/expenses/{{ expense.id }}/edit"
+            style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="text" name="description" value="{{ expense.description }}"
+               style="flex:1;min-width:200px" required>
+        <input type="text" name="amount" inputmode="decimal" style="width:110px"
+               value="{{ '%.2f'|format(expense.total_cents / 100) }}"
+               {{ 'disabled' if expense.split_mode == 'custom' }}>
+        <input type="date" name="incurred_on" value="{{ expense.incurred_on }}"
+               style="font:inherit;padding:8px 11px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)">
+        <button class="btn-primary" type="submit">Save</button>
+      </form>
+      <p class="sub" style="margin:10px 0 0">
+        {% if expense.split_mode == 'custom' %}
+          Custom amounts can't be re-split from a new total — delete this and add it again.
+        {% else %}
+          Changing the total re-splits it evenly over the same people.
+        {% endif %}
+      </p>
+      <form method="post" action="/household/expenses/{{ expense.id }}/void" style="margin-top:14px">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn-danger" type="submit">Delete</button>
+        <span class="sub">Possible while nothing has been paid.</span>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if timeline %}
+<div class="card">
+  <div class="card-head"><h2>History</h2></div>
+  <div class="scroll"><table>
+    {% for event in timeline %}
+    <tr>
+      <td>
+        {{ event['action'] | replace('_', ' ') }}
+        <span class="sub">
+          by {{ members[event['actor_id']].name if event['actor_id'] in members else 'someone' }}
+        </span>
+      </td>
+      <td class="num sub">{{ event['at'] | replace('T', ' ') }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endif %}
+
+{% endblock %}

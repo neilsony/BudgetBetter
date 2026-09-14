@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Manage · BudgetBetter{% endblock %}
+{% block pagetitle %}Manage the household{% endblock %}
+
+{% block head %}
+<style>
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 11px 20px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
+  tr:last-child td { border-bottom: 0; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .pad { padding: 16px 20px; }
+  .greyed { opacity: .55; }
+  .inline { display: inline; }
+  input[type=text], input[type=password] {
+    font: inherit; padding: 7px 10px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  }
+  .rentamt { width: 120px; text-align: right; }
+  tfoot td { font-weight: 650; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+
+<div class="card">
+  <div class="card-head">
+    <h2>Rent table</h2>
+    <span class="sub">What each person owes when someone presses “Request rent”.</span>
+  </div>
+  <form method="post" action="/household/admin/rent">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="scroll"><table>
+      <tr><th>Member</th><th class="num">Their share</th></tr>
+      {% for m in all_members if m.is_active %}
+      <tr>
+        <td>{{ m.name }}</td>
+        <td class="num">
+          <input class="rentamt" type="text" inputmode="decimal" name="rent_{{ m.id }}"
+                 value="{{ '%.2f'|format(rent[m.id] / 100) if m.id in rent else '' }}"
+                 placeholder="—">
+        </td>
+      </tr>
+      {% endfor %}
+      <tfoot>
+        <tr><td>Total</td><td class="num">{{ rent_total | money }}</td></tr>
+      </tfoot>
+    </table></div>
+    <div class="pad">
+      <button class="btn-primary" type="submit">Save rent table</button>
+      <span class="sub">Leave a box empty to take someone off rent entirely.</span>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Members</h2></div>
+  <div class="scroll"><table>
+    <tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th></th></tr>
+    {% for m in all_members %}
+    <tr class="{{ 'greyed' if not m.is_active }}">
+      <td>{{ m.name }}</td>
+      <td class="sub">{{ m.email }}</td>
+      <td>{{ m.role }}</td>
+      <td class="sub">{{ m.joined_on }}{% if m.left_on %} · left {{ m.left_on }}{% endif %}</td>
+      <td class="num">
+        {% if not m.is_owner %}
+        <form class="inline" method="post" action="/household/admin/members/{{ m.id }}/unregister">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="{{ 'btn-ghost' if not m.is_active else 'btn-danger' }}"
+                  style="padding:5px 11px;font-size:13px">
+            {{ 'Reinstate' if not m.is_active else 'Unregister' }}
+          </button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <div class="pad sub">
+    Unregistering hides someone from other Members and from every split, but keeps
+    their history and leaves their name on debts that are still outstanding.
+    Nobody is ever deleted.
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>House PIN</h2></div>
+  <form class="pad" method="post" action="/household/admin/pin">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <p class="sub" style="margin-top:0">
+      {% if has_pin %}Changing it does not affect anyone already registered.
+      {% else %}No PIN is set yet — nobody else can register until you set one.{% endif %}
+    </p>
+    <input type="text" name="pin" required minlength="4" placeholder="New PIN">
+    <button class="btn-primary" type="submit">Change PIN</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Audit log</h2>
+    <span class="sub">Every change, with who made it. Owner's eyes only.</span>
+  </div>
+  <div class="scroll"><table>
+    <tr><th>When</th><th>Who</th><th>What</th><th>Detail</th></tr>
+    {% for event in events %}
+    <tr>
+      <td class="sub">{{ event['at'] | replace('T', ' ') }}</td>
+      <td>{{ members[event['actor_id']].name if event['actor_id'] in members else '—' }}</td>
+      <td>{{ event['entity'] }} #{{ event['entity_id'] }} · {{ event['action'] | replace('_', ' ') }}</td>
+      <td class="sub">{{ (event['after_json'] or event['before_json'] or '')[:90] }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+
+{% endblock %}

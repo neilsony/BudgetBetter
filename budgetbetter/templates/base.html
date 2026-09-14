@@ -148,18 +148,50 @@
   <nav class="sidebar">
     <div class="brand">Budget<span>Better</span></div>
 
-    <div class="nav-group">Accounts</div>
-    <a class="navlink {{ 'on' if active_tab == 'budgeting' }}" href="/">
-      <span class="ico">◧</span> Budgeting
-      {% if has_budgeting is defined and not has_budgeting %}<span class="dot"></span>{% endif %}
-    </a>
-    <a class="navlink {{ 'on' if active_tab == 'investing' }}" href="/investments">
-      <span class="ico">◈</span> Investments
-      {% if has_investing is defined and not has_investing %}<span class="dot"></span>{% endif %}
-    </a>
+    {# The banking sections are the Owner's alone — a Member never sees that
+       they exist, let alone follows one. See ADR-0014. #}
+    {% if is_owner is defined and is_owner %}
+      <div class="nav-group">Accounts</div>
+      <a class="navlink {{ 'on' if active_tab == 'budgeting' }}" href="/">
+        <span class="ico">◧</span> Budgeting
+        {% if has_budgeting is defined and not has_budgeting %}<span class="dot"></span>{% endif %}
+      </a>
+      <a class="navlink {{ 'on' if active_tab == 'investing' }}" href="/investments">
+        <span class="ico">◈</span> Investments
+        {% if has_investing is defined and not has_investing %}<span class="dot"></span>{% endif %}
+      </a>
+    {% endif %}
+
+    {% if member is defined and member %}
+      <div class="nav-group">Household</div>
+      <a class="navlink {{ 'on' if active_tab == 'household' }}" href="/household">
+        <span class="ico">◍</span> Balances
+        {% if unseen is defined and unseen %}<span class="dot" style="opacity:1;background:var(--accent)"></span>{% endif %}
+      </a>
+      <a class="navlink {{ 'on' if active_tab == 'history' }}" href="/household/history">
+        <span class="ico">▤</span> History
+      </a>
+      {% if is_owner is defined and is_owner %}
+        <a class="navlink {{ 'on' if active_tab == 'disputes' }}" href="/household/disputes">
+          <span class="ico">⚖</span> Disputes
+          {% if pending_disputes is defined and pending_disputes %}<span class="dot" style="opacity:1;background:var(--negative)"></span>{% endif %}
+        </a>
+        <a class="navlink {{ 'on' if active_tab == 'admin' }}" href="/household/admin">
+          <span class="ico">⚙</span> Manage
+        </a>
+      {% endif %}
+    {% endif %}
 
     <div class="foot">
       {% if is_sandbox is defined and is_sandbox %}<span class="pill">Sandbox</span>{% endif %}
+      {% if member is defined and member %}
+        <div class="meta" style="text-align:left;margin-top:10px">
+          {{ member.name }}{% if member.is_owner %} · Owner{% endif %}
+        </div>
+        <form method="post" action="/household/logout" style="margin-top:8px">
+          <button class="btn-ghost" style="padding:5px 10px;font-size:12px">Sign out</button>
+        </form>
+      {% endif %}
     </div>
   </nav>
 

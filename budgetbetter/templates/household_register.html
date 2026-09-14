@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Register · BudgetBetter{% endblock %}
+{% block pagetitle %}{% if first_account %}Set up the household{% else %}Join the household{% endif %}{% endblock %}
+
+{% block head %}
+<style>
+  .auth { max-width: 420px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field input {
+    width: 100%; font: inherit; padding: 9px 12px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  }
+  .field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .field .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .err { color: var(--negative); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card auth">
+  <div class="card-head">
+    <h2>{% if first_account %}First account{% else %}Register{% endif %}</h2>
+    {% if first_account %}<span class="pill">Owner</span>{% endif %}
+  </div>
+  <div style="padding: 20px">
+    {% if error %}<div class="notice err">{{ error }}</div>{% endif %}
+    {% if first_account %}
+      <div class="notice">
+        The first account created becomes the <strong>Owner</strong>: the only person who
+        can resolve disputes, set the rent table, and see the banking sections.
+      </div>
+    {% endif %}
+    <form method="post" action="/household/register">
+      <div class="field">
+        <label for="name">Name</label>
+        <input id="name" name="name" required autofocus autocomplete="name">
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required minlength="8"
+               autocomplete="new-password">
+        <div class="hint">At least 8 characters.</div>
+      </div>
+      {% if not first_account %}
+        <div class="field">
+          <label for="pin">House PIN</label>
+          <input id="pin" name="pin" required autocomplete="off">
+          <div class="hint">Ask whoever runs the house for it.</div>
+        </div>
+      {% endif %}
+      <button class="btn-primary" type="submit">Create account</button>
+    </form>
+    <p class="meta" style="text-align:left;margin-top:16px">
+      Already registered? <a href="/household/login">Sign in</a>.
+    </p>
+  </div>
+</div>
+{% endblock %}

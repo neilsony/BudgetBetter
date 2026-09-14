@@ -5,12 +5,11 @@ build step. See ADR-0006.
 """
 
 import datetime as dt
-from pathlib import Path
+from contextlib import asynccontextmanager
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from budgetbetter.budgeting import analytics
 from budgetbetter.budgeting import db as budgeting_db
@@ -21,14 +20,34 @@ from budgetbetter.budgeting.sync import refresh_item
 from budgetbetter.config import get_settings
 from budgetbetter.core import db, plaid_client
 from budgetbetter.crypto import TokenCipher
+from budgetbetter.deps import get_connection
+from budgetbetter.household import db as household_db
+from budgetbetter.household.auth import require_owner
+from budgetbetter.household.models import Member
+from budgetbetter.household.routes import router as household_router
 from budgetbetter.investing import db as investing_db
 from budgetbetter.investing import plaid as investing_plaid
 from budgetbetter.investing import portfolio
 from budgetbetter.investing.sync import refresh_investments
+from budgetbetter.templating import TEMPLATES
 
-TEMPLATES = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
 
-app = FastAPI(title="BudgetBetter")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create the schema once, not on every request.
+
+    It used to run from the request-scoped connection dependency, which meant
+    every page load took the write lock to do nothing. See ADR-0018.
+    """
+    connection = db.connect(get_settings().database_path)
+    try:
+        db.initialise(connection)
+    finally:
+        connection.close()
+    yield
+
+
+app = FastAPI(title="BudgetBetter", lifespan=lifespan)
 
 RANGES = {
     "30d": "Last 30 days",
@@ -39,16 +58,6 @@ RANGES = {
 }
 
 ITEM_KINDS = ("budgeting", "investing")
-
-
-def get_connection():
-    settings = get_settings()
-    connection = db.connect(settings.database_path)
-    db.initialise(connection)
-    try:
-        yield connection
-    finally:
-        connection.close()
 
 
 def date_range(key: str, today: dt.date | None = None) -> tuple[dt.date | None, dt.date | None]:
@@ -68,12 +77,20 @@ def _cipher() -> TokenCipher:
     return TokenCipher(get_settings().encryption_key)
 
 
-def _nav(connection) -> dict:
-    """What the sidebar needs on every page."""
+def _nav(connection, member: Member | None = None) -> dict:
+    """What the sidebar needs on every page.
+
+    The banking links render for the Owner alone — a Member has no business
+    seeing they exist, let alone following one. See ADR-0014.
+    """
     return {
         "has_budgeting": bool(db.list_items(connection, kind="budgeting")),
         "has_investing": bool(db.list_items(connection, kind="investing")),
         "is_sandbox": get_settings().is_sandbox,
+        "member": member,
+        "is_owner": bool(member and member.is_owner),
+        "unseen": household_db.unseen_count(connection, member.id) if member else 0,
+        "pending_disputes": len(household_db.list_disputes(connection, pending_only=True)),
     }
 
 
@@ -83,6 +100,7 @@ def dashboard(
     range: str = "30d",
     granularity: str = "month",
     account: str = "",
+    owner: Member = Depends(require_owner),
     connection=Depends(get_connection),
 ):
     settings = get_settings()
@@ -126,7 +144,7 @@ def dashboard(
         request=request,
         name="dashboard.html",
         context={
-            **_nav(connection),
+            **_nav(connection, owner),
             "active_tab": "budgeting",
             "summary": summary,
             "trend": trend,
@@ -151,6 +169,7 @@ def dashboard(
 def investments_page(
     request: Request,
     account: str = "",
+    owner: Member = Depends(require_owner),
     connection=Depends(get_connection),
 ):
     """Holdings and trade history for every investing Item. See ADR-0008."""
@@ -174,7 +193,7 @@ def investments_page(
         request=request,
         name="investments.html",
         context={
-            **_nav(connection),
+            **_nav(connection, owner),
             "active_tab": "investing",
             "summary": summary,
             "allocation": portfolio.allocation(connection, account_id=account_id),
@@ -188,7 +207,12 @@ def investments_page(
 
 
 @app.get("/connect", response_class=HTMLResponse)
-def connect_page(request: Request, kind: str = "budgeting", connection=Depends(get_connection)):
+def connect_page(
+    request: Request,
+    kind: str = "budgeting",
+    owner: Member = Depends(require_owner),
+    connection=Depends(get_connection),
+):
     settings = get_settings()
     if settings.missing():
         return TEMPLATES.TemplateResponse(
@@ -199,7 +223,7 @@ def connect_page(request: Request, kind: str = "budgeting", connection=Depends(g
         request=request,
         name="connect.html",
         context={
-            **_nav(connection),
+            **_nav(connection, owner),
             "active_tab": kind,
             "kind": kind,
             "items": db.list_items(connection, kind=kind),
@@ -208,7 +232,10 @@ def connect_page(request: Request, kind: str = "budgeting", connection=Depends(g
 
 
 @app.post("/api/link-token")
-def api_link_token(kind: str = Form("budgeting")):
+def api_link_token(
+    kind: str = Form("budgeting"),
+    owner: Member = Depends(require_owner),
+):
     settings = get_settings()
     client = plaid_client.build_client(settings)
     kind = kind if kind in ITEM_KINDS else "budgeting"
@@ -222,6 +249,7 @@ def api_link_token(kind: str = Form("budgeting")):
 def api_exchange(
     public_token: str = Form(...),
     kind: str = Form("budgeting"),
+    owner: Member = Depends(require_owner),
     connection=Depends(get_connection),
 ):
     settings = get_settings()
@@ -273,7 +301,10 @@ def api_exchange(
 
 
 @app.post("/refresh")
-def do_refresh(connection=Depends(get_connection)):
+def do_refresh(
+    owner: Member = Depends(require_owner),
+    connection=Depends(get_connection),
+):
     """Pull new and changed Transactions for every budgeting Item. See ADR-0007."""
     settings = get_settings()
     client = plaid_client.build_client(settings)
@@ -304,7 +335,10 @@ def do_refresh(connection=Depends(get_connection)):
 
 
 @app.post("/investments/refresh")
-def do_refresh_investments(connection=Depends(get_connection)):
+def do_refresh_investments(
+    owner: Member = Depends(require_owner),
+    connection=Depends(get_connection),
+):
     """Pull Holdings and trades for every investing Item. See ADR-0008."""
     settings = get_settings()
     client = plaid_client.build_client(settings)
@@ -336,6 +370,7 @@ def do_refresh_investments(connection=Depends(get_connection)):
 def set_bucket(
     transaction_id: str,
     bucket: str = Form(...),
+    owner: Member = Depends(require_owner),
     connection=Depends(get_connection),
 ):
     """Set or clear an Override on one Transaction. See ADR-0003."""
@@ -343,3 +378,6 @@ def set_bucket(
         return JSONResponse({"ok": False, "error": f"Unknown bucket {bucket!r}"}, status_code=400)
     budgeting_db.set_override(connection, transaction_id, bucket)
     return {"ok": True, "bucket": bucket}
+
+
+app.include_router(household_router)

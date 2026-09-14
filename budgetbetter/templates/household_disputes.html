@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Disputes · BudgetBetter{% endblock %}
+{% block pagetitle %}Disputes{% endblock %}
+
+{% block head %}
+<style>
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 12px 20px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
+  tr:last-child td { border-bottom: 0; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .own { color: var(--negative); font-weight: 600; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input[type=text] {
+    font: inherit; padding: 7px 10px; width: 110px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="notice">
+  Upholding a dispute spreads the amount over everyone else on that expense —
+  <strong>the payer included</strong>, so whoever set the wrong amount carries a share of it too.
+  Amending moves only the difference. See ADR-0017.
+</div>
+
+<div class="card">
+  <div class="card-head"><h2>Awaiting your decision</h2></div>
+  {% if rows %}
+  <div class="scroll"><table>
+    <tr><th>Who and what</th><th>Reason</th><th class="num">Amount</th><th>Decide</th></tr>
+    {% for row in rows %}
+    <tr>
+      <td>
+        {{ members[row.share.member_id].name if row.share.member_id in members else 'Someone' }}
+        {% if row.share.member_id == member.id %}<span class="own">· your own share</span>{% endif %}
+        <div class="sub">
+          <a href="/household/expenses/{{ row.expense.id }}">{{ row.expense.description }}</a>
+          · paid by {{ members[row.expense.payer_id].name if row.expense.payer_id in members else '—' }}
+        </div>
+      </td>
+      <td>{{ row.dispute.reason }}</td>
+      <td class="num">{{ row.share.amount_cents | money }}</td>
+      <td>
+        <form method="post" action="/household/disputes/{{ row.dispute.id }}/resolve" class="actions">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button name="outcome" value="denied" class="btn-ghost">Deny</button>
+          <button name="outcome" value="upheld" class="btn-danger">Uphold</button>
+          <input type="text" name="amended" inputmode="decimal" placeholder="40.00">
+          <button name="outcome" value="amended" class="btn-primary">Amend to</button>
+        </form>
+        <div class="sub" style="margin-top:6px">
+          Deny returns it untouched. Uphold voids it and redistributes the whole
+          {{ row.share.amount_cents | money }}.
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  {% else %}
+  <div class="empty">Nothing to decide.</div>
+  {% endif %}
+</div>
+
+{% if resolved %}
+<div class="card">
+  <div class="card-head"><h2>Settled disputes</h2></div>
+  <div class="scroll"><table>
+    <tr><th>Raised by</th><th>Reason</th><th>Outcome</th><th class="num">When</th></tr>
+    {% for dispute in resolved if not dispute.is_pending %}
+    <tr>
+      <td>
+        {{ members[dispute.raised_by].name if dispute.raised_by in members else 'Someone' }}
+      </td>
+      <td>{{ dispute.reason }}</td>
+      <td>
+        {{ dispute.status }}
+        {% if dispute.amended_amount_cents is not none %}
+          to {{ dispute.amended_amount_cents | money }}
+        {% endif %}
+        {% if dispute.resolved_by == dispute.raised_by %}
+          <div class="sub own">resolved by the Owner on their own dispute</div>
+        {% endif %}
+      </td>
+      <td class="num sub">{{ (dispute.resolved_at or '')[:10] }}</td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,11 +1,14 @@
-"""The SQLite connection, the schema, and the tables both domains share.
+"""The SQLite connection, the schema, and the tables every domain shares.
 
 Spending tables live in `budgetbetter.budgeting.db`, investing tables in
-`budgetbetter.investing.db`. See ADR-0001 and ADR-0012.
+`budgetbetter.investing.db`, the shared ledger in `budgetbetter.household.db`.
+See ADR-0001, ADR-0012 and ADR-0018.
 """
 
 import datetime as dt
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from budgetbetter.core.models import Account
@@ -18,6 +21,7 @@ SCHEMA_PATHS = (
     PACKAGE_ROOT / "core" / "schema.sql",
     PACKAGE_ROOT / "budgeting" / "schema.sql",
     PACKAGE_ROOT / "investing" / "schema.sql",
+    PACKAGE_ROOT / "household" / "schema.sql",
 )
 
 
@@ -28,7 +32,32 @@ def connect(database: str | Path) -> sqlite3.Connection:
     connection = sqlite3.connect(database, check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA journal_mode = WAL")
+    # Off by default in SQLite, which would make every ON DELETE CASCADE in the
+    # schema decorative and let orphan rows through. A no-op inside a
+    # transaction, so it has to happen here. See ADR-0018.
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
+
+
+@contextmanager
+def writing(connection: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """A write transaction that takes the write lock up front.
+
+    Python opens transactions DEFERRED: they begin as a read and upgrade on the
+    first write. In WAL mode, if another connection wrote in between, SQLite
+    returns SQLITE_BUSY_SNAPSHOT and deliberately refuses to retry, because
+    retrying could deadlock — a busy timeout cannot rescue it. Every
+    read-modify-write goes through here instead. See ADR-0018.
+    """
+    if connection.in_transaction:
+        connection.commit()
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        yield connection
+    except Exception:
+        connection.rollback()
+        raise
+    connection.commit()
 
 
 def initialise(connection: sqlite3.Connection) -> None:
