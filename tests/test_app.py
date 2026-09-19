@@ -102,7 +102,29 @@ def test_the_refresh_confirmation_is_hidden_until_the_button_is_clicked(client):
     """The two-step confirm is deliberate friction — it must not start visible."""
     html = client.get("/").text
     assert '<span id="confirmBox" class="confirm" hidden>' in html
-    assert "[hidden] { display: none !important; }" in html
+    # The `hidden` attribute is only load-bearing because the stylesheet honours
+    # it, and the script that reveals the box lives there too. Assert both are
+    # linked rather than pinning the literal CSS text, which used to be inlined.
+    assert '<link rel="stylesheet" href="/static/css/app.css">' in html
+    assert '<script src="/static/js/refresh.js"></script>' in html
+
+
+def test_the_stylesheet_honours_the_hidden_attribute(client):
+    """Three scripts drive visibility through `hidden`; without this rule the
+    two-step confirm and the split-mode picker are both permanently open."""
+    css = client.get("/static/css/app.css")
+    assert css.status_code == 200
+    assert "[hidden] { display: none !important; }" in css.text
+
+
+def test_no_template_carries_an_inline_style_block():
+    """One stylesheet, not thirteen. This is what stops the duplication the
+    redesign deleted from quietly growing back. See ADR-0020."""
+    from pathlib import Path
+
+    templates = Path(__file__).resolve().parent.parent / "budgetbetter" / "templates"
+    offenders = [p.name for p in templates.glob("*.html") if "<style>" in p.read_text()]
+    assert offenders == []
 
 
 @pytest.fixture
@@ -182,7 +204,9 @@ def test_the_investments_page_renders_holdings(investing_client):
 
 
 def test_the_investments_page_shows_the_portfolio_value(investing_client):
-    assert "$1425.00" in investing_client.get("/investments").text
+    # Thousands separator: budgeting, investing and household now all format
+    # money through the same formatter. See ADR-0020.
+    assert "$1,425.00" in investing_client.get("/investments").text
 
 
 def test_the_investments_page_shows_unrealised_gain(investing_client):

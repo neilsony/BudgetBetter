@@ -6,36 +6,24 @@
   <div class="meta">Every expense in the house, settled ones included.</div>
 {% endblock %}
 
-{% block head %}
-<style>
-  .scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { padding: 11px 20px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
-  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
-  tr:last-child td { border-bottom: 0; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .sub { color: var(--muted); font-size: 12px; }
-  .greyed { opacity: .5; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 650; border: 1px solid var(--border); }
-  .badge.open { color: var(--negative); }
-  .badge.done { color: var(--positive); }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="card">
   <div class="card-head">
     <h2>All expenses</h2>
+    <div class="spacer"></div>
     <span class="sub">You see the whole house's ledger, including expenses you are not on.</span>
   </div>
   {% if expenses %}
   <div class="scroll"><table>
-    <tr><th>What</th><th>Paid by</th><th>How</th><th class="num">Total</th><th class="num">Outstanding</th></tr>
+    <thead>
+      <tr><th>What</th><th>Paid by</th><th>How</th><th class="num">Total</th><th class="num">Outstanding</th></tr>
+    </thead>
+    <tbody>
     {% for expense in expenses %}
     <tr class="{{ 'greyed' if expense.is_void or expense.settled }}">
       <td>
         <a href="/household/expenses/{{ expense.id }}">{{ expense.description }}</a>
-        {% if expense.is_void %}<span class="badge">Deleted</span>{% endif %}
+        {% if expense.is_void %}<span class="badge void">Deleted</span>{% endif %}
         <div class="sub">{{ expense.incurred_on }}</div>
       </td>
       <td>{{ members[expense.payer_id].name if expense.payer_id in members else '—' }}</td>
@@ -48,6 +36,7 @@
       </td>
     </tr>
     {% endfor %}
+    </tbody>
   </table></div>
   {% else %}
   <div class="empty">No expenses yet. <a href="/household/expenses/new">Add the first one</a>.</div>

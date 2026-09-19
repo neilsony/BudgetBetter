@@ -4,12 +4,12 @@
 {% block head %}<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>{% endblock %}
 
 {% block content %}
-<div class="card">
+<div class="card raised" style="max-width:620px">
   <div class="card-head">
     <h2>{{ "Connect your brokerage" if kind == "investing" else "Connect your bank" }}</h2>
   </div>
-  <div style="padding: 28px 20px 32px; text-align:center;">
-    <p style="max-width:52ch;margin:0 auto 22px;color:var(--muted)">
+  <div class="pad" style="text-align:center">
+    <p class="sub" style="max-width:52ch;margin:0 auto 24px">
       {% if is_sandbox %}
         You are in <strong>Sandbox</strong>, so pick any test institution and sign in with
         <code>user_good</code> / <code>pass_good</code>.
@@ -21,29 +21,30 @@
         this app never sees them.
       {% endif %}
     </p>
-    <button id="link" class="btn-primary" style="padding:11px 22px;font-size:15px">
-      Connect with Plaid
-    </button>
-    <p id="status" style="margin-top:18px;color:var(--muted);font-size:14px"></p>
+    <button id="link" class="btn-primary">Connect with Plaid</button>
+    <p id="status" class="sub" style="margin-top:18px"></p>
   </div>
 </div>
 
 {% if items %}
-<div class="card">
+<div class="card" style="max-width:620px">
   <div class="card-head"><h2>Connected</h2></div>
-  <div style="padding: 8px 20px 16px">
+  <div class="scroll"><table>
+    <tbody>
     {% for item in items %}
-      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
-        <strong>{{ item["institution_name"] or "Bank" }}</strong>
-        <span style="color:var(--muted);font-size:13px">
-          — linked {{ item["created_at"][:10] }}
-        </span>
-      </div>
+      <tr>
+        <td><strong>{{ item["institution_name"] or "Bank" }}</strong></td>
+        <td class="num sub">linked {{ item["created_at"][:10] }}</td>
+      </tr>
     {% endfor %}
-  </div>
+    </tbody>
+  </table></div>
 </div>
 {% endif %}
+{% endblock %}
 
+{% block scripts %}
+{# Templated JS — it interpolates {{ kind }}, so it stays inline. See ADR-0020. #}
 <script>
 const KIND = "{{ kind }}";
 const AFTER = KIND === "investing" ? "/investments" : "/";

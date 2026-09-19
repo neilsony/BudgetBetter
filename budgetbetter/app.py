@@ -6,10 +6,12 @@ build step. See ADR-0006.
 
 import datetime as dt
 from contextlib import asynccontextmanager
+from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from budgetbetter.budgeting import analytics
 from budgetbetter.budgeting import db as budgeting_db
@@ -48,6 +50,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="BudgetBetter", lifespan=lifespan)
+
+# The stylesheet, the shared scripts and the self-hosted font. Still no build
+# step — a stylesheet is not a build. See ADR-0006 and ADR-0020.
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).with_name("static"))),
+    name="static",
+)
 
 RANGES = {
     "30d": "Last 30 days",

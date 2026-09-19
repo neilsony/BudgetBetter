@@ -6,53 +6,33 @@
   <a class="btn btn-primary" href="/household/expenses/new">Add an expense</a>
 {% endblock %}
 
-{% block head %}
-<style>
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
-  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
-  .tile .k { font-size: 11px; color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: .05em; }
-  .tile .v { font-size: 26px; font-weight: 650; letter-spacing: -.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
-  .tile .v.out { color: var(--negative); }
-  .tile .v.in { color: var(--positive); }
-  .scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { padding: 11px 20px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
-  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
-  tr:last-child td { border-bottom: 0; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .sub { color: var(--muted); font-size: 12px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 650; border: 1px solid var(--border); }
-  .badge.claimed { color: var(--accent); background: var(--accent-soft); }
-  .badge.disputed { color: var(--negative); }
-  .greyed { opacity: .55; }
-  .inline { display: inline; }
-  .rentbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 16px 20px; }
-  select { font: inherit; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
-</style>
-{% endblock %}
-
 {% block content %}
 
-<div class="tiles">
-  <div class="tile">
-    <div class="k">You owe</div>
-    <div class="v {{ 'out' if total_owed }}">{{ total_owed | money }}</div>
+<div class="statrow">
+  <div class="stat hero">
+    <div class="stat-label">You owe</div>
+    <div class="stat-value {{ 'out' if total_owed }}">{{ total_owed | money }}</div>
   </div>
-  <div class="tile">
-    <div class="k">You are owed</div>
-    <div class="v {{ 'in' if total_owed_to_me }}">{{ total_owed_to_me | money }}</div>
+  <div class="stat">
+    <div class="stat-label">You are owed</div>
+    <div class="stat-value {{ 'in' if total_owed_to_me }}">{{ total_owed_to_me | money }}</div>
   </div>
-  <div class="tile">
-    <div class="k">Open lines</div>
-    <div class="v">{{ lines | length }}</div>
+  <div class="stat">
+    <div class="stat-label">Open lines</div>
+    <div class="stat-value">{{ lines | length }}</div>
   </div>
 </div>
 
 {% if awaiting %}
-<div class="card">
-  <div class="card-head"><h2>Waiting on you to confirm</h2></div>
+<div class="card raised">
+  <div class="card-head">
+    <h2>Waiting on you to confirm</h2>
+    <div class="spacer"></div>
+    <span class="sub">They say they have sent it.</span>
+  </div>
   <div class="scroll"><table>
-    <tr><th>Who</th><th>For</th><th class="num">Amount</th><th></th></tr>
+    <thead><tr><th>Who</th><th>For</th><th class="num">Amount</th><th></th></tr></thead>
+    <tbody>
     {% for line in awaiting %}
     <tr>
       <td>{{ line.counterparty.name }}</td>
@@ -61,11 +41,12 @@
       <td class="num">
         <form class="inline" method="post" action="/household/shares/{{ line.share.id }}/paid">
           <input type="hidden" name="csrf" value="{{ csrf }}">
-          <button class="btn-primary" style="padding:5px 11px;font-size:13px">Confirm received</button>
+          <button class="btn-primary btn-sm">Confirm received</button>
         </form>
       </td>
     </tr>
     {% endfor %}
+    </tbody>
   </table></div>
 </div>
 {% endif %}
@@ -74,16 +55,18 @@
   <div class="card-head"><h2>Balances</h2></div>
   {% if balances %}
   <div class="scroll"><table>
-    <tr><th>Person</th><th></th><th class="num">Amount</th></tr>
+    <thead><tr><th>Person</th><th>Direction</th><th class="num">Amount</th></tr></thead>
+    <tbody>
     {% for balance in balances %}
     <tr>
-      <td>{{ balance.other.name }}{% if not balance.other.is_active %} <span class="sub">· moved out</span>{% endif %}</td>
+      <td>{{ balance.other.name }}{% if not balance.other.is_active %} <span class="badge void">moved out</span>{% endif %}</td>
       <td class="sub">{% if balance.you_owe %}you owe them{% else %}they owe you{% endif %}</td>
-      <td class="num" style="color: {{ 'var(--negative)' if balance.you_owe else 'var(--positive)' }}">
+      <td class="num" style="color: {{ 'var(--accent-deep)' if balance.you_owe else 'var(--positive)' }}">
         {{ balance.amount }}
       </td>
     </tr>
     {% endfor %}
+    </tbody>
   </table></div>
   {% else %}
   <div class="empty">Nobody owes anybody anything.</div>
@@ -94,9 +77,11 @@
 <div class="card">
   <div class="card-head">
     <h2>Disputed — awaiting resolution</h2>
+    <div class="spacer"></div>
     <span class="sub">Counts against nobody until the Owner decides.</span>
   </div>
   <div class="scroll"><table>
+    <tbody>
     {% for line in disputed %}
     <tr class="greyed">
       <td>
@@ -110,15 +95,21 @@
       <td class="num"><span class="badge disputed">Disputed</span></td>
     </tr>
     {% endfor %}
+    </tbody>
   </table></div>
 </div>
 {% endif %}
 
 <div class="card">
-  <div class="card-head"><h2>Line items</h2><span class="sub">What makes up the numbers above.</span></div>
+  <div class="card-head">
+    <h2>Line items</h2>
+    <div class="spacer"></div>
+    <span class="sub">What makes up the numbers above.</span>
+  </div>
   {% if lines %}
   <div class="scroll"><table>
-    <tr><th>What</th><th>Who</th><th class="num">Amount</th><th></th></tr>
+    <thead><tr><th>What</th><th>Who</th><th class="num">Amount</th><th></th></tr></thead>
+    <tbody>
     {% for line in lines %}
     <tr>
       <td>
@@ -135,17 +126,18 @@
         {% if line.owed_by_me and line.share.status == 'owed' %}
           <form class="inline" method="post" action="/household/shares/{{ line.share.id }}/claim">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <button style="padding:5px 11px;font-size:13px">I've sent this</button>
+            <button class="btn-sm">I've sent this</button>
           </form>
         {% elif not line.owed_by_me and line.share.status in ('owed', 'claimed') %}
           <form class="inline" method="post" action="/household/shares/{{ line.share.id }}/paid">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <button style="padding:5px 11px;font-size:13px">Mark paid</button>
+            <button class="btn-sm">Mark paid</button>
           </form>
         {% endif %}
       </td>
     </tr>
     {% endfor %}
+    </tbody>
   </table></div>
   {% else %}
   <div class="empty">Nothing outstanding. <a href="/household/history">See the history</a>.</div>
@@ -153,11 +145,15 @@
 </div>
 
 <div class="card">
-  <div class="card-head"><h2>Rent</h2><span class="sub">Fixed amounts, one button, nothing to mistype.</span></div>
+  <div class="card-head">
+    <h2>Rent</h2>
+    <div class="spacer"></div>
+    <span class="sub">Fixed amounts, one button, nothing to mistype.</span>
+  </div>
   <form class="rentbar" method="post" action="/household/rent">
     <input type="hidden" name="csrf" value="{{ csrf }}">
-    <label for="payer_id" class="sub">Who paid the landlord?</label>
-    <select id="payer_id" name="payer_id">
+    <label class="field-label" for="payer_id" style="margin:0">Who paid the landlord?</label>
+    <select class="compact" id="payer_id" name="payer_id">
       {% for m in members.values() if m.is_active %}
         <option value="{{ m.id }}" {{ 'selected' if m.id == member.id }}>{{ m.name }}</option>
       {% endfor %}
@@ -170,12 +166,14 @@
 <div class="card">
   <div class="card-head"><h2>Recent activity</h2></div>
   <div class="scroll"><table>
+    <tbody>
     {% for note in notifications %}
     <tr class="{{ '' if not note['seen_at'] else 'greyed' }}">
       <td>{% if note['link'] %}<a href="{{ note['link'] }}">{{ note['body'] }}</a>{% else %}{{ note['body'] }}{% endif %}</td>
       <td class="num sub">{{ note['created_at'][:10] }}</td>
     </tr>
     {% endfor %}
+    </tbody>
   </table></div>
 </div>
 {% endif %}

@@ -2,45 +2,23 @@
 {% block title %}Add an expense · BudgetBetter{% endblock %}
 {% block pagetitle %}Add an expense{% endblock %}
 
-{% block head %}
-<style>
-  .form { max-width: 640px; padding: 20px; }
-  .field { margin-bottom: 16px; }
-  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-  .field input, .field select {
-    width: 100%; font: inherit; padding: 9px 12px; border-radius: 9px;
-    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
-  }
-  .field .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
-  .row { display: flex; gap: 14px; }
-  .row .field { flex: 1; }
-  .people { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-  .person { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); }
-  .person:last-child { border-bottom: 0; }
-  .person input[type=checkbox] { width: auto; margin: 0; }
-  .person .nm { flex: 1; }
-  .person input[type=text] { width: 120px; padding: 6px 10px; }
-  .err { color: var(--negative); }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="card">
+<div class="card raised" style="max-width:640px">
   <div class="card-head"><h2>New expense</h2></div>
-  <form class="form" method="post" action="/household/expenses">
+  <form class="pad" method="post" action="/household/expenses">
     <input type="hidden" name="csrf" value="{{ csrf }}">
 
     {% if error %}<div class="notice err">{{ error }}</div>{% endif %}
 
     <div class="field">
       <label for="description">What was it for?</label>
-      <input id="description" name="description" required autofocus placeholder="Hydro bill">
+      <input id="description" name="description" type="text" required autofocus placeholder="Hydro bill">
     </div>
 
     <div class="row">
       <div class="field">
         <label for="amount">Total</label>
-        <input id="amount" name="amount" inputmode="decimal" placeholder="600.00">
+        <input id="amount" name="amount" type="text" inputmode="decimal" placeholder="600.00">
         <div class="hint">You paid this. Ignored if you enter custom amounts.</div>
       </div>
       <div class="field">
@@ -67,7 +45,7 @@
         <div class="person">
           <input type="checkbox" id="m{{ m.id }}" name="member_ids" value="{{ m.id }}"
                  {{ 'checked' if m.id == member.id }}>
-          <label class="nm" for="m{{ m.id }}" style="margin:0;font-weight:500">
+          <label class="nm" for="m{{ m.id }}">
             {{ m.name }}{% if m.id == member.id %} (you){% endif %}
           </label>
           <input type="text" name="custom_{{ m.id }}" inputmode="decimal"
@@ -78,37 +56,14 @@
       <div class="hint" id="pickerhint"></div>
     </div>
 
-    <button class="btn-primary" type="submit">Add expense</button>
-    <a class="btn btn-ghost" href="/household">Cancel</a>
+    <div class="actions">
+      <button class="btn-primary" type="submit">Add expense</button>
+      <a class="btn btn-ghost" href="/household">Cancel</a>
+    </div>
   </form>
 </div>
+{% endblock %}
 
-<script>
-  const mode = document.getElementById('split_mode');
-  const picker = document.getElementById('picker');
-  const modehint = document.getElementById('modehint');
-  const pickerhint = document.getElementById('pickerhint');
-  const amount = document.getElementById('amount');
-  const customs = [...document.querySelectorAll('.customamt')];
-
-  const HINTS = {
-    equal_all: 'Every active member, you included.',
-    equal_selected: 'Split evenly between whoever you tick. You are always included.',
-    custom: 'Type what each person owes. They must add up to the total, and yours may be zero.',
-    reimbursement: 'The people you tick owe the whole amount. You take no share.',
-  };
-
-  function sync() {
-    const m = mode.value;
-    picker.hidden = (m === 'equal_all');
-    modehint.textContent = HINTS[m];
-    customs.forEach(input => { input.hidden = (m !== 'custom'); });
-    amount.disabled = (m === 'custom');
-    pickerhint.textContent = (m === 'custom')
-      ? 'The total is whatever these add up to.'
-      : '';
-  }
-  mode.addEventListener('change', sync);
-  sync();
-</script>
+{% block scripts %}
+<script src="/static/js/split-mode.js"></script>
 {% endblock %}

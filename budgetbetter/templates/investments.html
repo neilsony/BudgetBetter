@@ -2,79 +2,14 @@
 {% block title %}Investments · BudgetBetter{% endblock %}
 {% block pagetitle %}Investments{% endblock %}
 
-{% block head %}
-<style>
-  .tiles {
-    display: grid; gap: 14px; padding: 18px 20px;
-    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  }
-  .tile {
-    background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px 16px;
-  }
-  .tile .label {
-    font-size: 12px; font-weight: 600; letter-spacing: .03em;
-    text-transform: uppercase; color: var(--muted);
-  }
-  .tile .value { font-size: 21px; font-weight: 650; letter-spacing: -.02em; margin-top: 6px; }
-  .tile.hero { grid-column: span 2; background: var(--accent-soft); border-color: transparent; }
-  .tile.hero .value { font-size: 32px; }
-  .tile.gain-up { background: color-mix(in srgb, var(--positive) 12%, transparent); }
-  .tile.gain-down { background: color-mix(in srgb, var(--negative) 12%, transparent); }
-  .up { color: var(--positive); }
-  .down { color: var(--negative); }
-  .unknown { color: var(--muted); font-size: 14px; font-weight: 500; }
-
-  .alloc { padding: 18px 20px; display: flex; flex-direction: column; gap: 11px; }
-  .alloc-row { display: flex; align-items: center; gap: 12px; }
-  .alloc-name { width: 108px; font-weight: 550; font-size: 13px; flex: none; }
-  .alloc-track {
-    flex: 1; height: 9px; border-radius: 5px; background: var(--surface-2);
-    border: 1px solid var(--border); overflow: hidden;
-  }
-  .alloc-fill { height: 100%; background: var(--accent); border-radius: 5px; }
-  .alloc-pct {
-    width: 108px; text-align: right; font-size: 13px; color: var(--muted);
-    font-variant-numeric: tabular-nums; flex: none;
-  }
-
-  table { width: 100%; border-collapse: collapse; }
-  th {
-    text-align: left; font-size: 11px; font-weight: 620; letter-spacing: .05em;
-    text-transform: uppercase; color: var(--muted);
-    padding: 10px 20px; border-bottom: 1px solid var(--border); white-space: nowrap;
-  }
-  td { padding: 11px 20px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-  tr:last-child td { border-bottom: 0; }
-  tr:hover td { background: var(--surface-2); }
-  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .ticker { font-weight: 600; }
-  .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
-  .acct-head td {
-    background: var(--surface-2); font-weight: 620; font-size: 13px;
-    border-bottom: 1px solid var(--border);
-  }
-  .tag {
-    font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
-    border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; color: var(--muted);
-  }
-  .scroll { overflow-x: auto; }
-  select {
-    font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px;
-    border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  }
-  .confirm { display: flex; gap: 8px; align-items: center; }
-</style>
-{% endblock %}
-
 {% block headerextra %}
 <div class="meta">
   {% if last_refreshed %}Last refreshed {{ last_refreshed.replace("T", " ") }}{% else %}Never refreshed{% endif %}
 </div>
-<form method="post" action="/investments/refresh" id="refreshForm" style="display:flex;gap:8px;align-items:center">
+<form method="post" action="/investments/refresh" id="refreshForm" class="actions">
   <button type="button" id="refreshBtn" class="btn-primary">Refresh</button>
   <span id="confirmBox" class="confirm" hidden>
-    <span style="font-size:13px;color:var(--muted)">Pull from Plaid?</span>
+    <span class="sub">Pull from Plaid?</span>
     <button type="submit" class="btn-danger">Yes, refresh</button>
     <button type="button" id="cancelBtn" class="btn-ghost">Cancel</button>
   </span>
@@ -92,11 +27,45 @@
 </div>
 {% endif %}
 
+<div class="statrow">
+  <div class="stat hero">
+    <div class="stat-label">Total value</div>
+    <div class="stat-value">{{ summary.total_value | dollars }}</div>
+    <div class="stat-note">{{ summary.holding_count }} position{{ 's' if summary.holding_count != 1 }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">All-time return</div>
+    {% if summary.has_contributions %}
+      <div class="stat-value {{ 'in' if summary.all_time_gain > 0 else 'out' if summary.all_time_gain < 0 }}">
+        {{ '+' if summary.all_time_gain > 0 }}{{ summary.all_time_gain | dollars }}
+      </div>
+      <div class="stat-note">
+        {{ '+' if summary.all_time_gain_pct > 0 }}{{ '%.2f'|format(summary.all_time_gain_pct) }}% against net deposits
+      </div>
+    {% else %}
+      <div class="stat-value unknown">Not enough history</div>
+    {% endif %}
+  </div>
+  <div class="stat">
+    <div class="stat-label">Unrealised gain</div>
+    {% if summary.has_cost_basis %}
+      <div class="stat-value {{ 'in' if summary.total_gain > 0 else 'out' if summary.total_gain < 0 }}">
+        {{ '+' if summary.total_gain > 0 }}{{ summary.total_gain | dollars }}
+      </div>
+      <div class="stat-note">
+        {{ '+' if summary.total_gain_pct > 0 }}{{ '%.2f'|format(summary.total_gain_pct) }}% on what you still hold
+      </div>
+    {% else %}
+      <div class="stat-value unknown">Not reported</div>
+    {% endif %}
+  </div>
+</div>
+
 <div class="card">
   <div class="card-head">
     <h2>Portfolio</h2>
     <div class="spacer"></div>
-    <select onchange="location = '/investments?account=' + this.value">
+    <select class="compact" onchange="location = '/investments?account=' + this.value">
       <option value="">All accounts</option>
       {% for account in account_list %}
         <option value="{{ account.account_id }}" {{ 'selected' if account.account_id == selected_account }}>
@@ -106,62 +75,25 @@
     </select>
   </div>
 
-  <div class="tiles">
-    <div class="tile hero">
-      <div class="label">Total value</div>
-      <div class="value">${{ '%.2f'|format(summary.total_value) }}</div>
-    </div>
-    <div class="tile hero {{ 'gain-up' if summary.all_time_gain > 0 else 'gain-down' if summary.all_time_gain < 0 }}">
-      <div class="label">All-time return</div>
-      <div class="value {{ 'up' if summary.all_time_gain > 0 else 'down' if summary.all_time_gain < 0 }}">
-        {% if summary.has_contributions %}
-          {{ '+' if summary.all_time_gain > 0 }}${{ '%.2f'|format(summary.all_time_gain) }}
-          <span style="font-size:18px">
-            ({{ '+' if summary.all_time_gain_pct > 0 }}{{ '%.2f'|format(summary.all_time_gain_pct) }}%)
-          </span>
-        {% else %}<span class="unknown">Not enough history</span>{% endif %}
-      </div>
-    </div>
-    <div class="tile">
-      <div class="label">Net deposits</div>
-      <div class="value">${{ '%.2f'|format(summary.net_contributions) }}</div>
-    </div>
-    <div class="tile">
-      <div class="label">Invested</div>
-      <div class="value">${{ '%.2f'|format(summary.total_securities) }}</div>
-    </div>
-    <div class="tile">
-      <div class="label">Cash</div>
-      <div class="value">${{ '%.2f'|format(summary.total_cash) }}</div>
-    </div>
-    <div class="tile">
-      <div class="label">Cost basis</div>
-      <div class="value">
-        {% if summary.has_cost_basis %}${{ '%.2f'|format(summary.total_cost_basis) }}
-        {% else %}<span class="unknown">Not reported</span>{% endif %}
-      </div>
-    </div>
-    <div class="tile">
-      <div class="label" title="Gain on the positions you still hold, ignoring anything already sold.">
-        Unrealised gain
-      </div>
-      <div class="value {{ 'up' if summary.total_gain > 0 else 'down' if summary.total_gain < 0 }}">
-        {% if summary.has_cost_basis %}
-          {{ '+' if summary.total_gain > 0 }}${{ '%.2f'|format(summary.total_gain) }}
-          <span style="font-size:13px;color:var(--muted)">
-            {{ '+' if summary.total_gain_pct > 0 }}{{ '%.2f'|format(summary.total_gain_pct) }}%
-          </span>
-        {% else %}<span class="unknown">Not reported</span>{% endif %}
-      </div>
-    </div>
-    <div class="tile">
-      <div class="label">Positions</div>
-      <div class="value">{{ summary.holding_count }}</div>
-    </div>
+  <div class="scroll">
+    <table>
+      <tbody>
+        <tr><td>Net deposits</td><td class="num">{{ summary.net_contributions | dollars }}</td></tr>
+        <tr><td>Invested</td><td class="num">{{ summary.total_securities | dollars }}</td></tr>
+        <tr><td>Cash</td><td class="num">{{ summary.total_cash | dollars }}</td></tr>
+        <tr>
+          <td>Cost basis</td>
+          <td class="num">
+            {% if summary.has_cost_basis %}{{ summary.total_cost_basis | dollars }}
+            {% else %}<span class="unknown">Not reported</span>{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   {% if summary.unpriced_count %}
-    <div style="padding: 0 20px 18px; color: var(--muted); font-size: 13px;">
+    <div class="pad sub" style="border-top: 1px dashed var(--rule)">
       Plaid returned no price for {{ summary.unpriced_count }}
       position{{ 's' if summary.unpriced_count != 1 }}, so
       {{ 'they are' if summary.unpriced_count != 1 else 'it is' }} left out of Invested and
@@ -179,7 +111,7 @@
       <div class="alloc-row">
         <div class="alloc-name">{{ slice.label }}</div>
         <div class="alloc-track"><div class="alloc-fill" style="width: {{ slice.share }}%"></div></div>
-        <div class="alloc-pct">{{ slice.share }}% · ${{ '%.0f'|format(slice.value) }}</div>
+        <div class="alloc-pct">{{ slice.share }}% · {{ slice.value | dollars }}</div>
       </div>
     {% endfor %}
   </div>
@@ -190,7 +122,7 @@
   <div class="card-head">
     <h2>Holdings</h2>
     <div class="spacer"></div>
-    <span style="color:var(--muted);font-size:13px">{{ summary.holding_count }} positions</span>
+    <span class="sub">{{ summary.holding_count }} positions</span>
   </div>
   {% if summary.accounts %}
   <div class="scroll">
@@ -206,14 +138,13 @@
           <tr class="acct-head">
             <td>{{ position.name }}</td>
             <td class="num"></td><td class="num"></td>
-            <td class="num">${{ '%.2f'|format(position.value) }}</td>
+            <td class="num">{{ position.value | dollars }}</td>
             <td class="num">
-              {% if position.cost_basis %}${{ '%.2f'|format(position.cost_basis) }}{% else %}—{% endif %}
+              {% if position.cost_basis %}{{ position.cost_basis | dollars }}{% else %}—{% endif %}
             </td>
-            {# closes below so the gain cell keeps its existing markup #}
             <td class="num {{ 'up' if position.gain and position.gain > 0 else 'down' if position.gain and position.gain < 0 }}">
               {% if position.gain is not none %}
-                {{ '+' if position.gain > 0 }}${{ '%.2f'|format(position.gain) }}
+                {{ '+' if position.gain > 0 }}{{ position.gain | dollars }}
               {% else %}—{% endif %}
             </td>
           </tr>
@@ -225,7 +156,7 @@
             </td>
             <td class="num">—</td>
             <td class="num">—</td>
-            <td class="num">${{ '%.2f'|format(position.cash) }}</td>
+            <td class="num">{{ position.cash | dollars }}</td>
             <td class="num">—</td>
             <td class="num">—</td>
           </tr>
@@ -243,7 +174,7 @@
             <td class="num">{{ '%g'|format(holding.quantity) }}</td>
             <td class="num">
               {% if holding.effective_price %}
-                ${{ '%.2f'|format(holding.effective_price) }}
+                {{ holding.effective_price | dollars }}
                 {% if holding.price_is_fallback %}
                   <div class="sub" title="Your broker reported no live price, so this is the last close.">
                     close{% if holding.security and holding.security.close_price_as_of %}
@@ -254,15 +185,15 @@
               {% else %}—{% endif %}
             </td>
             <td class="num">
-              {% if holding.is_priced %}${{ '%.2f'|format(holding.market_value) }}
+              {% if holding.is_priced %}{{ holding.market_value | dollars }}
               {% else %}<span class="unknown">—</span>{% endif %}
             </td>
             <td class="num">
-              {% if holding.cost_basis %}${{ '%.2f'|format(holding.cost_basis) }}{% else %}—{% endif %}
+              {% if holding.cost_basis %}{{ holding.cost_basis | dollars }}{% else %}—{% endif %}
             </td>
             <td class="num {{ 'up' if holding.gain and holding.gain > 0 else 'down' if holding.gain and holding.gain < 0 }}">
               {% if holding.gain is not none %}
-                {{ '+' if holding.gain > 0 }}${{ '%.2f'|format(holding.gain) }}
+                {{ '+' if holding.gain > 0 }}{{ holding.gain | dollars }}
                 <div class="sub">{{ '%+.1f'|format(holding.gain_pct) }}%</div>
               {% else %}—{% endif %}
             </td>
@@ -281,7 +212,7 @@
   <div class="card-head">
     <h2>Trade history</h2>
     <div class="spacer"></div>
-    <span style="color:var(--muted);font-size:13px">{{ trades|length }} shown</span>
+    <span class="sub">{{ trades|length }} shown</span>
   </div>
   {% if trades %}
   <div class="scroll">
@@ -295,23 +226,23 @@
       <tbody>
         {% for trade in trades %}
         <tr>
-          <td style="white-space:nowrap;color:var(--muted)">{{ trade.date.strftime("%-d %b %Y") }}</td>
+          <td class="sub" style="white-space:nowrap">{{ trade.date.strftime("%-d %b %Y") }}</td>
           <td>
             <div class="ticker">
               {{ trade.security.display_name if trade.security else trade.display_name }}
             </div>
             {% if trade.security and trade.name %}<div class="sub">{{ trade.name }}</div>{% endif %}
           </td>
-          <td style="color:var(--muted);font-size:13px;white-space:nowrap">
+          <td class="sub" style="white-space:nowrap">
             {{ accounts[trade.account_id].display_name if trade.account_id in accounts else "—" }}
           </td>
           <td><span class="tag">{{ trade.subtype or trade.type or "—" }}</span></td>
           <td class="num">{% if trade.quantity %}{{ '%g'|format(trade.quantity) }}{% else %}—{% endif %}</td>
-          <td class="num">{% if trade.price %}${{ '%.2f'|format(trade.price) }}{% else %}—{% endif %}</td>
+          <td class="num">{% if trade.price %}{{ trade.price | dollars }}{% else %}—{% endif %}</td>
           <td class="num {{ 'up' if trade.amount and trade.amount < 0 }}">
             {% if trade.amount is not none %}
-              {% if trade.amount < 0 %}+${{ '%.2f'|format(-trade.amount) }}
-              {% else %}${{ '%.2f'|format(trade.amount) }}{% endif %}
+              {% if trade.amount < 0 %}+{{ -trade.amount | dollars }}
+              {% else %}{{ trade.amount | dollars }}{% endif %}
             {% else %}—{% endif %}
           </td>
         </tr>
@@ -323,16 +254,8 @@
     <div class="empty">No trades yet.</div>
   {% endif %}
 </div>
+{% endblock %}
 
-<script>
-// Two-step Refresh: the first click only reveals the confirmation.
-const btn = document.getElementById('refreshBtn');
-const box = document.getElementById('confirmBox');
-btn.addEventListener('click', () => { btn.hidden = true; box.hidden = false; });
-document.getElementById('cancelBtn').addEventListener('click', () => { box.hidden = true; btn.hidden = false; });
-document.getElementById('refreshForm').addEventListener('submit', (e) => {
-  e.submitter.disabled = true;
-  e.submitter.textContent = 'Refreshing…';
-});
-</script>
+{% block scripts %}
+<script src="/static/js/refresh.js"></script>
 {% endblock %}

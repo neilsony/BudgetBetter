@@ -1,68 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Budgeting · BudgetBetter{% endblock %}
 {% block pagetitle %}Budgeting{% endblock %}
-{% block head %}
-<style>
-  .tiles {
-    display: grid; gap: 14px; padding: 18px 20px;
-    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  }
-  .tile {
-    background: var(--surface-2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 14px 16px;
-  }
-  .tile .label {
-    font-size: 12px; font-weight: 600; letter-spacing: .03em;
-    text-transform: uppercase; color: var(--muted);
-  }
-  .tile .value { font-size: 21px; font-weight: 650; letter-spacing: -.02em; margin-top: 6px; }
-  .tile.hero { grid-column: span 2; background: var(--accent-soft); border-color: transparent; }
-  .tile.hero .value { font-size: 34px; }
-  .tile.income .value { color: var(--positive); }
-
-  .chart { display: flex; align-items: flex-end; gap: 10px; height: 200px; padding: 22px 20px 12px; }
-  .bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
-  .bar .fill {
-    background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 65%, transparent));
-    border-radius: 7px 7px 3px 3px; min-height: 3px;
-    transition: height .25s ease;
-  }
-  .bar .amt { font-size: 11px; color: var(--muted); text-align: center; margin-bottom: 6px; }
-  .bar .lbl { font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px; white-space: nowrap; }
-
-  table { width: 100%; border-collapse: collapse; }
-  th {
-    text-align: left; font-size: 11px; font-weight: 620; letter-spacing: .05em;
-    text-transform: uppercase; color: var(--muted);
-    padding: 10px 20px; border-bottom: 1px solid var(--border);
-  }
-  td { padding: 11px 20px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-  tr:last-child td { border-bottom: 0; }
-  tr:hover td { background: var(--surface-2); }
-  .merchant { font-weight: 550; }
-  .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
-  .amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 550; white-space: nowrap; }
-  .amount.in { color: var(--positive); }
-  .pending { font-size: 10px; color: var(--muted); border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; }
-  select {
-    font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 8px;
-    border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  }
-  .scroll { overflow-x: auto; }
-  .filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .confirm { display: flex; gap: 8px; align-items: center; }
-</style>
-{% endblock %}
 
 {% block headerextra %}
 <div class="meta">
   {% if last_refreshed %}Last refreshed {{ last_refreshed.replace("T", " ") }}{% else %}Never refreshed{% endif %}<br>
   Next automatic refresh {{ next_payday.strftime("%a %-d %b") }}
 </div>
-<form method="post" action="/refresh" id="refreshForm" style="display:flex;gap:8px;align-items:center">
+<form method="post" action="/refresh" id="refreshForm" class="actions">
   <button type="button" id="refreshBtn" class="btn-primary">Refresh</button>
   <span id="confirmBox" class="confirm" hidden>
-    <span style="font-size:13px;color:var(--muted)">Pull from Plaid?</span>
+    <span class="sub">Pull from Plaid?</span>
     <button type="submit" class="btn-danger">Yes, refresh</button>
     <button type="button" id="cancelBtn" class="btn-ghost">Cancel</button>
   </span>
@@ -81,44 +29,61 @@
 </div>
 {% endif %}
 
+<div class="statrow">
+  <div class="stat hero">
+    <div class="stat-label">Total spending</div>
+    <div class="stat-value out">{{ summary.total_spending | dollars }}</div>
+    <div class="stat-note">{{ ranges.get(selected_range, selected_range) | lower }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Income</div>
+    <div class="stat-value in">{{ summary.total_income | dollars }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Transactions</div>
+    <div class="stat-value">{{ summary.transaction_count }}</div>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-head">
     <h2>Spending</h2>
     <div class="spacer"></div>
-    <div class="filters">
-      <div class="segmented">
-        {% for key, label in ranges.items() %}
-          <a class="{{ 'on' if key == selected_range }}"
-             href="/?range={{ key }}&granularity={{ granularity }}&account={{ selected_account or '' }}">{{ label }}</a>
-        {% endfor %}
-      </div>
-      <select onchange="location = '/?range={{ selected_range }}&granularity={{ granularity }}&account=' + this.value">
-        <option value="">All accounts</option>
-        {% for account in account_list %}
-          <option value="{{ account.account_id }}" {{ 'selected' if account.account_id == selected_account }}>
-            {{ account.display_name }}
-          </option>
-        {% endfor %}
-      </select>
+  </div>
+  <div class="filters">
+    <div class="segmented">
+      {% for key, label in ranges.items() %}
+        <a class="{{ 'on' if key == selected_range }}"
+           href="/?range={{ key }}&granularity={{ granularity }}&account={{ selected_account or '' }}">{{ label }}</a>
+      {% endfor %}
     </div>
+    <select class="compact"
+            onchange="location = '/?range={{ selected_range }}&granularity={{ granularity }}&account=' + this.value">
+      <option value="">All accounts</option>
+      {% for account in account_list %}
+        <option value="{{ account.account_id }}" {{ 'selected' if account.account_id == selected_account }}>
+          {{ account.display_name }}
+        </option>
+      {% endfor %}
+    </select>
   </div>
 
-  <div class="tiles">
-    <div class="tile hero">
-      <div class="label">Total spending</div>
-      <div class="value">${{ '%.2f'|format(summary.total_spending) }}</div>
-    </div>
-    <div class="tile income">
-      <div class="label">Income</div>
-      <div class="value">${{ '%.2f'|format(summary.total_income) }}</div>
-    </div>
+  {% if summary.by_bucket %}
+  <div class="alloc" style="border-top: 1.5px solid var(--ink)">
     {% for bucket, amount in summary.by_bucket.items() %}
-      <div class="tile">
-        <div class="label">{{ bucket_labels.get(bucket, bucket) }}</div>
-        <div class="value">${{ '%.2f'|format(amount) }}</div>
+      <div class="alloc-row">
+        <div class="alloc-name">{{ bucket_labels.get(bucket, bucket) }}</div>
+        <div class="alloc-track">
+          <div class="alloc-fill"
+               style="width: {{ (amount / summary.total_spending * 100) if summary.total_spending else 0 }}%"></div>
+        </div>
+        <div class="alloc-pct">{{ amount | dollars }}</div>
       </div>
     {% endfor %}
   </div>
+  {% else %}
+    <div class="empty">No spending in this range.</div>
+  {% endif %}
 </div>
 
 <div class="card">
@@ -134,7 +99,7 @@
   </div>
   <div class="chart">
     {% for point in trend %}
-      <div class="bar" title="{{ point.label }}: ${{ '%.2f'|format(point.spending) }}">
+      <div class="bar" title="{{ point.label }}: {{ point.spending | dollars }}">
         <div class="amt">${{ point.spending|round|int }}</div>
         <div class="fill" style="height: {{ (point.spending / trend_peak * 100) if point.spending > 0 else 0 }}%"></div>
         <div class="lbl">{{ point.label }}</div>
@@ -147,7 +112,7 @@
   <div class="card-head">
     <h2>Transactions</h2>
     <div class="spacer"></div>
-    <span style="color:var(--muted);font-size:13px">{{ transactions|length }} shown</span>
+    <span class="sub">{{ transactions|length }} shown</span>
   </div>
   {% if transactions %}
   <div class="scroll">
@@ -155,26 +120,26 @@
       <thead>
         <tr>
           <th>Date</th><th>Merchant</th><th>Account</th>
-          <th>Plaid category</th><th>Bucket</th><th style="text-align:right">Amount</th>
+          <th>Plaid category</th><th>Bucket</th><th class="num">Amount</th>
         </tr>
       </thead>
       <tbody>
         {% for txn in transactions %}
         <tr>
-          <td style="white-space:nowrap;color:var(--muted)">{{ txn.date.strftime("%-d %b") }}</td>
+          <td class="sub" style="white-space:nowrap">{{ txn.date.strftime("%-d %b") }}</td>
           <td>
             <div class="merchant">
               {{ txn.display_merchant }}
-              {% if txn.pending %}<span class="pending">pending</span>{% endif %}
+              {% if txn.pending %}<span class="badge void">pending</span>{% endif %}
             </div>
             {% if txn.merchant_name and txn.name != txn.merchant_name %}
               <div class="sub">{{ txn.name }}</div>
             {% endif %}
           </td>
-          <td style="color:var(--muted);font-size:13px;white-space:nowrap">
+          <td class="sub" style="white-space:nowrap">
             {{ accounts[txn.account_id].display_name if txn.account_id in accounts else "—" }}
           </td>
-          <td class="sub" style="margin:0">{{ (txn.plaid_detailed or "—").replace("_", " ")|lower }}</td>
+          <td class="sub">{{ (txn.plaid_detailed or "—").replace("_", " ")|lower }}</td>
           <td>
             <select data-txn="{{ txn.transaction_id }}" class="bucket">
               {% for bucket in buckets %}
@@ -185,8 +150,8 @@
             </select>
           </td>
           <td class="amount {{ 'in' if txn.amount < 0 }}">
-            {% if txn.amount < 0 %}+${{ '%.2f'|format(-txn.amount) }}
-            {% else %}${{ '%.2f'|format(txn.amount) }}{% endif %}
+            {% if txn.amount < 0 %}+{{ -txn.amount | dollars }}
+            {% else %}{{ txn.amount | dollars }}{% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -197,27 +162,9 @@
     <div class="empty">Nothing here yet. Hit <strong>Refresh</strong> to pull from Plaid.</div>
   {% endif %}
 </div>
+{% endblock %}
 
-<script>
-// Two-step Refresh: the first click only reveals the confirmation.
-const btn = document.getElementById('refreshBtn');
-const box = document.getElementById('confirmBox');
-btn.addEventListener('click', () => { btn.hidden = true; box.hidden = false; });
-document.getElementById('cancelBtn').addEventListener('click', () => { box.hidden = true; btn.hidden = false; });
-document.getElementById('refreshForm').addEventListener('submit', (e) => {
-  e.submitter.disabled = true;
-  e.submitter.textContent = 'Refreshing…';
-});
-
-// Setting a Bucket by hand writes an Override, which survives later refreshes.
-document.querySelectorAll('select.bucket').forEach((select) => {
-  select.addEventListener('change', async () => {
-    const body = new FormData();
-    body.append('bucket', select.value);
-    select.disabled = true;
-    await fetch(`/transactions/${select.dataset.txn}/bucket`, { method: 'POST', body });
-    select.disabled = false;
-  });
-});
-</script>
+{% block scripts %}
+<script src="/static/js/refresh.js"></script>
+<script src="/static/js/buckets.js"></script>
 {% endblock %}

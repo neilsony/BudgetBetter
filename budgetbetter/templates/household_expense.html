@@ -9,32 +9,6 @@
   </div>
 {% endblock %}
 
-{% block head %}
-<style>
-  .scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { padding: 11px 20px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
-  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
-  tr:last-child td { border-bottom: 0; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .sub { color: var(--muted); font-size: 12px; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 650; border: 1px solid var(--border); }
-  .badge.paid { color: var(--positive); }
-  .badge.claimed { color: var(--accent); background: var(--accent-soft); }
-  .badge.disputed { color: var(--negative); }
-  .badge.void { color: var(--muted); }
-  .greyed { opacity: .55; }
-  .inline { display: inline; }
-  .pad { padding: 16px 20px; }
-  .err { color: var(--negative); }
-  textarea, input[type=text] {
-    font: inherit; padding: 8px 11px; border-radius: 9px;
-    border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
-  }
-  textarea { width: 100%; min-height: 60px; }
-</style>
-{% endblock %}
-
 {% block content %}
 
 {% if error %}<div class="notice err">{{ error }}</div>{% endif %}
@@ -43,16 +17,17 @@
   <div class="notice">This expense was deleted. It is kept here for the record.</div>
 {% endif %}
 
-<div class="card">
+<div class="card raised">
   <div class="card-head">
     <h2>Shares</h2>
-    <span class="sub">{{ split_labels.get(expense.split_mode, expense.split_mode) }}</span>
     <div class="spacer"></div>
+    <span class="sub">{{ split_labels.get(expense.split_mode, expense.split_mode) }}</span>
     {% if expense.is_rent %}<span class="pill">Rent</span>{% endif %}
     {% if expense.is_resolution %}<span class="pill">Dispute resolution</span>{% endif %}
   </div>
   <div class="scroll"><table>
-    <tr><th>Person</th><th>Status</th><th class="num">Amount</th><th></th></tr>
+    <thead><tr><th>Person</th><th>Status</th><th class="num">Amount</th><th></th></tr></thead>
+    <tbody>
     {% for share in expense.shares %}
     <tr class="{{ 'greyed' if share.status in ('void', 'disputed') or share.written_off }}">
       <td>
@@ -73,16 +48,17 @@
       <td class="num">{{ share.amount_cents | money }}</td>
       <td class="num">
         {% if not expense.is_void %}
+          <span class="actions" style="justify-content:flex-end">
           {% if share.member_id == member.id and share.status == 'owed' %}
             <form class="inline" method="post" action="/household/shares/{{ share.id }}/claim">
               <input type="hidden" name="csrf" value="{{ csrf }}">
-              <button style="padding:5px 11px;font-size:13px">I've sent this</button>
+              <button class="btn-sm">I've sent this</button>
             </form>
           {% endif %}
           {% if expense.payer_id == member.id and share.status in ('owed', 'claimed') and share.member_id != member.id %}
             <form class="inline" method="post" action="/household/shares/{{ share.id }}/paid">
               <input type="hidden" name="csrf" value="{{ csrf }}">
-              <button class="btn-primary" style="padding:5px 11px;font-size:13px">
+              <button class="btn-primary btn-sm">
                 {{ 'Confirm' if share.status == 'claimed' else 'Mark paid' }}
               </button>
             </form>
@@ -90,20 +66,22 @@
           {% if share.status in ('paid', 'claimed') and (expense.payer_id == member.id or share.member_id == member.id) %}
             <form class="inline" method="post" action="/household/shares/{{ share.id }}/unmark">
               <input type="hidden" name="csrf" value="{{ csrf }}">
-              <button class="btn-ghost" style="padding:5px 9px;font-size:12px">Undo</button>
+              <button class="btn-ghost btn-sm">Undo</button>
             </form>
           {% endif %}
           {% if is_owner and share.status in ('owed', 'claimed') and not share.written_off %}
             <form class="inline" method="post" action="/household/shares/{{ share.id }}/write-off">
               <input type="hidden" name="csrf" value="{{ csrf }}">
               <input type="hidden" name="reason" value="Written off by the Owner">
-              <button class="btn-ghost" style="padding:5px 9px;font-size:12px">Write off</button>
+              <button class="btn-ghost btn-sm">Write off</button>
             </form>
           {% endif %}
+          </span>
         {% endif %}
       </td>
     </tr>
     {% endfor %}
+    </tbody>
   </table></div>
 </div>
 
@@ -118,7 +96,7 @@
       until the Owner decides. It affects nobody else's share in the meantime.
     </p>
     <textarea name="reason" required placeholder="Why is this unfair?"></textarea>
-    <div style="margin-top:10px"><button class="btn-danger" type="submit">Dispute this share</button></div>
+    <div style="margin-top:12px"><button class="btn-danger" type="submit">Dispute this share</button></div>
   </form>
 </div>
 {% elif my_share and expense.is_rent %}
@@ -138,26 +116,35 @@
         the money has genuinely moved. Post a corrective expense the other way instead.
       </p>
     {% else %}
-      <form method="post" action="/household/expenses/{{ expense.id }}/edit"
-            style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <form method="post" action="/household/expenses/{{ expense.id }}/edit" class="row">
         <input type="hidden" name="csrf" value="{{ csrf }}">
-        <input type="text" name="description" value="{{ expense.description }}"
-               style="flex:1;min-width:200px" required>
-        <input type="text" name="amount" inputmode="decimal" style="width:110px"
-               value="{{ '%.2f'|format(expense.total_cents / 100) }}"
-               {{ 'disabled' if expense.split_mode == 'custom' }}>
-        <input type="date" name="incurred_on" value="{{ expense.incurred_on }}"
-               style="font:inherit;padding:8px 11px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)">
-        <button class="btn-primary" type="submit">Save</button>
+        <div class="field" style="flex:2;min-width:200px">
+          <label class="field-label" for="description">Reason</label>
+          <input id="description" type="text" name="description" value="{{ expense.description }}" required>
+        </div>
+        <div class="field" style="flex:0 0 130px">
+          <label class="field-label" for="amount">Total</label>
+          <input id="amount" type="text" name="amount" inputmode="decimal"
+                 value="{{ '%.2f'|format(expense.total_cents / 100) }}"
+                 {{ 'disabled' if expense.split_mode == 'custom' }}>
+        </div>
+        <div class="field" style="flex:0 0 160px">
+          <label class="field-label" for="incurred_on">Date</label>
+          <input id="incurred_on" type="date" name="incurred_on" value="{{ expense.incurred_on }}">
+        </div>
+        <div class="field" style="flex:0 0 auto;display:flex;align-items:flex-end">
+          <button class="btn-primary" type="submit">Save</button>
+        </div>
       </form>
-      <p class="sub" style="margin:10px 0 0">
+      <p class="sub" style="margin:0 0 16px">
         {% if expense.split_mode == 'custom' %}
           Custom amounts can't be re-split from a new total — delete this and add it again.
         {% else %}
           Changing the total re-splits it evenly over the same people.
         {% endif %}
       </p>
-      <form method="post" action="/household/expenses/{{ expense.id }}/void" style="margin-top:14px">
+      <hr class="rule-dashed">
+      <form method="post" action="/household/expenses/{{ expense.id }}/void" class="actions">
         <input type="hidden" name="csrf" value="{{ csrf }}">
         <button class="btn-danger" type="submit">Delete</button>
         <span class="sub">Possible while nothing has been paid.</span>
@@ -171,6 +158,7 @@
 <div class="card">
   <div class="card-head"><h2>History</h2></div>
   <div class="scroll"><table>
+    <tbody>
     {% for event in timeline %}
     <tr>
       <td>
@@ -182,6 +170,7 @@
       <td class="num sub">{{ event['at'] | replace('T', ' ') }}</td>
     </tr>
     {% endfor %}
+    </tbody>
   </table></div>
 </div>
 {% endif %}
